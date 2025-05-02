@@ -29,9 +29,6 @@ class BaseMetadataExtractor(MetadataExtractor):
         model_name = eval_log.eval.model
         model_name = model_name.split("/")[-1] if "/" in model_name else model_name
 
-        # record the log file path this sample came from
-        log_path = eval_log.location
-
         return {
             "score": self._normalise_score(next(iter(sample.scores.values())).value),
             "target": str(sample.target),
@@ -40,7 +37,6 @@ class BaseMetadataExtractor(MetadataExtractor):
             "task": str(sample.id),
             "epoch": sample.epoch,
             "num_messages": len(sample.messages),
-            "log_path": log_path,
         }
 
     def _normalise_score(self, score: Any) -> float:
