@@ -626,52 +626,57 @@ class ModelBetaBinomial(BaseModel):
             with numpyro.plate("model_plate", num_models):
                 model_effects = numpyro.sample("model_effects", dist.Normal(0, 0.3))
 
-            # ---------------- Probability of success ---------------------
-
-            # Calculate log-odds
-            logits = numpyro.deterministic(
-                "logits",
-                overall_mean + task_effects[task_index] + model_effects[model_index],
-            )
-
-            # Convert to average probability
-            avg_success_prob = numpyro.deterministic(
-                "avg_success_prob", jax.nn.sigmoid(logits)
-            )
-
-            # Overdispersion parameter (controls how much probabilities vary)
-            dispersion_phi = numpyro.sample("dispersion_phi", dist.Gamma(1.0, 0.1))
-
-            # Calculate alpha and beta for Beta distribution
-            beta_alpha = avg_success_prob * dispersion_phi
-            beta_beta = (1 - avg_success_prob) * dispersion_phi
-
-            # Sample success probabilities from a Beta
-            success_prob = numpyro.sample(
-                "success_prob", dist.Beta(beta_alpha, beta_beta)
-            )
-
-            # Sample observations (n_correct)
-            if obs is not None:
-                # Convert proportions to counts
-                count_obs = jnp.round(obs * total_count).astype(jnp.int32)
-
-                # Run binomial on observed data
-                numpyro.sample(
-                    "n_correct", dist.Binomial(total_count, success_prob), obs=count_obs
+            # For each observation compute the logit and the success probability
+            # (instead of for loop do it with numpyro.plate)
+            data_size = len(model_index)
+            with numpyro.plate("data", data_size):
+                # ---------------- Probability of success ---------------------
+                # Calculate log-odds
+                logits = numpyro.deterministic(
+                    "logits",
+                    overall_mean
+                    + task_effects[task_index]
+                    + model_effects[model_index],
                 )
 
-                # Observed is the proportion
-                numpyro.deterministic("obs", obs)
-
-            # If no observations are provided, sample from the model (prior predictive)
-            else:
-                # Generate count predictions
-                count_pred = numpyro.sample(
-                    "n_correct", dist.Binomial(total_count, success_prob)
+                # Convert to average probability
+                avg_success_prob = numpyro.deterministic(
+                    "avg_success_prob", jax.nn.sigmoid(logits)
                 )
-                # Convert counts to proportions
-                numpyro.deterministic("obs", count_pred / total_count)
+
+                # Overdispersion parameter (controls how much probabilities vary)
+                dispersion_phi = numpyro.sample("dispersion_phi", dist.Gamma(1.0, 0.1))
+
+                # Calculate alpha and beta for Beta distribution
+                beta_alpha = avg_success_prob * dispersion_phi
+                beta_beta = (1 - avg_success_prob) * dispersion_phi
+
+                # Sample success probabilities from a Beta
+                success_prob = numpyro.sample(
+                    "success_prob", dist.Beta(beta_alpha, beta_beta)
+                )
+
+                # Sample observations (n_correct)
+                if obs is not None:
+                    # Convert proportions to counts
+                    count_obs = jnp.round(obs * total_count).astype(jnp.int32)
+
+                    # Run binomial on observed data
+                    numpyro.sample(
+                        "n_correct", dist.Binomial(total_count, success_prob), obs=count_obs
+                    )
+
+                    # Observed is the proportion
+                    numpyro.deterministic("obs", obs)
+
+                # If no observations are provided, sample from the model (prior predictive)
+                else:
+                    # Generate count predictions
+                    count_pred = numpyro.sample(
+                        "n_correct", dist.Binomial(total_count, success_prob)
+                    )
+                    # Convert counts to proportions
+                    numpyro.deterministic("obs", count_pred / total_count)
 
         return model
 
@@ -767,37 +772,43 @@ class ModelBinomial(BaseModel):
             with numpyro.plate("model_plate", num_models):
                 model_effects = numpyro.sample("model_effects", dist.Normal(0, 0.3))
 
-            # ---------------- Probability of success ---------------------
+            # For each observation compute the logit and the success probability
+            # (instead of for loop do it with numpyro.plate)
+            data_size = len(model_index)
+            with numpyro.plate("data", data_size):
+                # ---------------- Probability of success ---------------------
 
-            # Calculate log-odds
-            logits = numpyro.deterministic(
-                "logits",
-                overall_mean + task_effects[task_index] + model_effects[model_index],
-            )
-
-            # Sample success probabilities from a Beta
-            success_prob = numpyro.deterministic("success_prob", jax.nn.sigmoid(logits))
-
-            # Sample observations (n_correct)
-            if obs is not None:
-                # Convert proportions to counts
-                count_obs = jnp.round(obs * total_count).astype(jnp.int32)
-
-                # Run binomial on observed data
-                numpyro.sample(
-                    "n_correct", dist.Binomial(total_count, success_prob), obs=count_obs
+                # Calculate log-odds
+                logits = numpyro.deterministic(
+                    "logits",
+                    overall_mean
+                    + task_effects[task_index]
+                    + model_effects[model_index],
                 )
 
-                # Observed is the proportion
-                numpyro.deterministic("obs", obs)
+                # Sample success probabilities from a Beta
+                success_prob = numpyro.deterministic("success_prob", jax.nn.sigmoid(logits))
 
-            # If no observations are provided, sample from the model (prior predictive)
-            else:
-                # Generate count predictions
-                count_pred = numpyro.sample(
-                    "n_correct", dist.Binomial(total_count, success_prob)
-                )
-                # Convert counts to proportions
-                numpyro.deterministic("obs", count_pred / total_count)
+                # Sample observations (n_correct)
+                if obs is not None:
+                    # Convert proportions to counts
+                    count_obs = jnp.round(obs * total_count).astype(jnp.int32)
+
+                    # Run binomial on observed data
+                    numpyro.sample(
+                        "n_correct", dist.Binomial(total_count, success_prob), obs=count_obs
+                    )
+
+                    # Observed is the proportion
+                    numpyro.deterministic("obs", obs)
+
+                # If no observations are provided, sample from the model (prior predictive)
+                else:
+                    # Generate count predictions
+                    count_pred = numpyro.sample(
+                        "n_correct", dist.Binomial(total_count, success_prob)
+                    )
+                    # Convert counts to proportions
+                    numpyro.deterministic("obs", count_pred / total_count)
 
         return model
