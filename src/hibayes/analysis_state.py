@@ -325,7 +325,7 @@ class AnalysisState:
         raise ValueError(f"Model {model_name} not found in analysis state.")
 
     def get_best_model(
-        self, with_respect_to: str = "elpd_waic", minimum: bool = True
+        self, with_respect_to: str = "elpd_waic", minimum: bool = False
     ) -> ModelAnalysisState:
         """
         Get the best model based on a diagnostic metric (lower is better).
