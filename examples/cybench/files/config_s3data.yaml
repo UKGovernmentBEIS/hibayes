@@ -1,10 +1,10 @@
 data_loader:
   paths:
     files_to_process:
-      - s3://aisi-data-eu-west-2-prod/teams/soe/cybench-alt.eval
-      - s3://aisi-data-eu-west-2-prod/teams/soe/cybench-basic.eval
-      #- s3://aisi-data-eu-west-2-prod/teams/ru/agents/ws-agents/project-2025-q1-fine-tuning/2025-03-24T16-25-25/3f1c7ae17a1f128a2901431616c5985ae3ca7c3b/2025-03-24T16-25-32+00-00_cybench_SRPDmkNWkUAZ3ZhJnfnXXV.eval
-      #- s3://aisi-data-eu-west-2-prod/teams/ru/agents/ws-agents/project-2025-q1-fine-tuning/2025-03-13T10-15-12/bad1cba240c3029c4e67f51612911a87ed09c9c4/2025-03-13T10-15-20+00-00_cybench_XUEnmgDF6iwa2LcAa6WxwJ.eval
+      #- s3://aisi-data-eu-west-2-prod/teams/soe/cybench-alt.eval
+      #- s3://aisi-data-eu-west-2-prod/teams/soe/cybench-basic.eval
+      - s3://aisi-data-eu-west-2-prod/teams/ru/agents/ws-agents/project-2025-q1-fine-tuning/2025-03-24T16-25-25/3f1c7ae17a1f128a2901431616c5985ae3ca7c3b/2025-03-24T16-25-32+00-00_cybench_SRPDmkNWkUAZ3ZhJnfnXXV.eval
+      - s3://aisi-data-eu-west-2-prod/teams/ru/agents/ws-agents/project-2025-q1-fine-tuning/2025-03-13T10-15-12/bad1cba240c3029c4e67f51612911a87ed09c9c4/2025-03-13T10-15-20+00-00_cybench_XUEnmgDF6iwa2LcAa6WxwJ.eval
       #- s3://aisi-data-eu-west-2-prod/teams/ru/agents/ws-agents/project-2025-q1-think/2025-04-04T09-40-24/926c0b51b20c3615904ce296d196492181158cdc/2025-04-04T09-40-29+00-00_cybench_4LieCvsTh45izf2q46Quds.eval
       #- s3://aisi-data-eu-west-2-prod/teams/ru/agents/ws-agents/project-2025-q1-fine-tuning/2025-03-07T12-05-01/bad1cba240c3029c4e67f51612911a87ed09c9c4/2025-03-07T12-05-07+00-00_cybench_KES9LdKUyAJModWsdwmxic.eval
       #- s3://aisi-data-eu-west-2-prod/teams/ru/agents/ws-agents/project-2025-q1-fine-tuning/2025-03-11T12-27-52/bad1cba240c3029c4e67f51612911a87ed09c9c4/2025-03-11T12-27-56+00-00_cybench_dTUz47tRDtcArMmpYu2hBZ.eval
@@ -23,7 +23,6 @@ model:
   models:
     ModelBinomial:
     ModelBetaBinomial:
-    ModelBetaBinomialwSetup:
 platform:
 checkers:
   checks:
