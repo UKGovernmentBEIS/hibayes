@@ -30,7 +30,7 @@ class CommunicateConfig:
         """Set up default checks if none specified."""
         if not self.enabled_communicators:
             self.enabled_communicators = [
-                registry_get(RegistryInfo(type="communicate", name=check))()
+                registry_get(RegistryInfo(type="communicator", name=check))()
                 for check in self.DEFAULT_COMMUNICATE
             ]
 
@@ -64,20 +64,20 @@ class CommunicateConfig:
                     )
                     enabled_communicators.append(
                         registry_get(
-                            RegistryInfo(type="communicate", name=communicate_name)
+                            RegistryInfo(type="communicator", name=communicate_name)
                         )(**communicate_config)
                     )
                 else:
                     communicate_name = communicate
                     enabled_communicators.append(
                         registry_get(
-                            RegistryInfo(type="communicate", name=communicate_name)
+                            RegistryInfo(type="communicator", name=communicate_name)
                         )()
                     )
         elif isinstance(communicate_config, dict):
             for communicate_name, kwargs in communicate_config.items():
                 communicator = registry_get(
-                    RegistryInfo(type="communicate", name=communicate_name)
+                    RegistryInfo(type="communicator", name=communicate_name)
                 )
                 enabled_communicators.append(communicator(**kwargs))
 
@@ -110,7 +110,7 @@ class CommunicateConfig:
                     )
                 try:
                     communicator = registry_get(
-                        RegistryInfo(type="communicate", name=name)
+                        RegistryInfo(type="communicator", name=name)
                     )
                 except KeyError:
                     logger.warning(

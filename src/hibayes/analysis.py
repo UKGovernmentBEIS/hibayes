@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 import yaml
 
-from .analyse import CheckerConfig
+from .check import CheckerConfig
 from .analysis_state import AnalysisState, ModelAnalysisState
 from .communicate import CommunicateConfig
 from .load import (
