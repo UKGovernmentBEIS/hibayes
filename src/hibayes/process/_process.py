@@ -46,7 +46,7 @@ def process(
     def process_wrapper(*args, **kwargs) -> DataProcessor:
         processor = process_builder(*args, **kwargs)
 
-        @wraps(processor)
+        @wraps(process_builder)
         def process_interface(
             state: AnalysisState,
             display: ModellingDisplay | None = None,
@@ -57,6 +57,12 @@ def process(
             # we only modify the processed_data attr, keeping the original extracted data intact
             if state.processed_data is None:  # processors only act on processed data
                 state.processed_data = state.data.copy()
+
+            if state.processed_data.empty:
+                raise ValueError(
+                    "Processed data is empty. Please ensure that the data has been loaded and processed correctly before applying processors."
+                )
+
             return processor(state, display)
 
         registry_tag(

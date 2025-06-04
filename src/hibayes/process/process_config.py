@@ -27,8 +27,8 @@ class ProcessConfig:
         """Set up default checks if none specified."""
         if not self.enabled_processors:
             self.enabled_processors = [
-                registry_get(RegistryInfo(type="processor", name=check))()
-                for check in self.DEFAULT_PROCESS
+                registry_get(RegistryInfo(type="processor", name=process))()
+                for process in self.DEFAULT_PROCESS
             ]
 
     @classmethod

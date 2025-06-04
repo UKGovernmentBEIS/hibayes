@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -44,7 +44,10 @@ def extract_observed_feature(
             "obs": jnp.array(state.processed_data[feature_name].values, dtype=dtype)
         }
 
-        state.features = state.features.update(features) if state.features else features
+        if state.features:
+            state.features.update(features)
+        else:
+            state.features = features
 
         if display:
             display.logger.info(
@@ -141,7 +144,7 @@ def drop_rows_with_missing_features(
 
 @process
 def map_columns(
-    column_mapping: Dict[str, str],
+    column_mapping: Optional[Dict[str, str]] = None,
 ) -> DataProcessor:
     """
     Map columns in the data to new names.
@@ -154,6 +157,8 @@ def map_columns(
         state: AnalysisState,
         display: ModellingDisplay | None = None,
     ) -> AnalysisState:
+        if column_mapping is None:
+            return state
         if display:
             display.logger.info(f"Mapping columns: {column_mapping}")
 
@@ -166,7 +171,7 @@ def map_columns(
 
 @process
 def groupby(
-    groupby_columns: List[str],
+    groupby_columns: Optional[List[str]] = None,
     *args,
     **kwargs,
 ) -> DataProcessor:
@@ -183,11 +188,14 @@ def groupby(
         state: AnalysisState,
         display: ModellingDisplay | None = None,
     ) -> AnalysisState:
+        if groupby_columns is None:
+            return state
+
         if not all(
             col in state.processed_data.columns for col in groupby_columns + ["score"]
         ):
             raise ValueError(
-                f"Processed data must contain {groupby_columns} columns. Either write a custom processor, or use map_columns processor to map the columns to these names."
+                f"Processed data must both contain {groupby_columns} and score columns. Either write a custom processor, or use map_columns processor to map the columns to these names."
             )
 
         if display:

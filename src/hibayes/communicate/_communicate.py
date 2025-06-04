@@ -51,7 +51,7 @@ def communicate(
     def communicator_wrapper(*args, **kwargs) -> Communicator:
         communicator = communicate_builder(*args, **kwargs)
 
-        @wraps(communicator)
+        @wraps(communicate_builder)
         def communicator_interface(
             state: AnalysisState,
             display: ModellingDisplay | None = None,
