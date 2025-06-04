@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 import pandas as pd
 import yaml
 
-from .check import CheckerConfig
 from .analysis_state import AnalysisState, ModelAnalysisState
+from .check import CheckerConfig
 from .communicate import CommunicateConfig
 from .load import (
     DataLoaderConfig,
@@ -12,9 +12,9 @@ from .load import (
 )
 from .model import (
     ModelsToRunConfig,
-    fit,
 )
-from .platform import PlatformConfig, configure_computation_platform
+from .platform import PlatformConfig
+from .process import ProcessConfig
 from .registry import registry_info
 from .ui import ModellingDisplay
 
@@ -28,6 +28,7 @@ class AnalysisConfig:
     """Optional configuration object for the analysis pipeline."""
 
     data_loader: DataLoaderConfig
+    data_process: ProcessConfig
     models: ModelsToRunConfig
     checkers: CheckerConfig
     communicate: CommunicateConfig
@@ -48,6 +49,9 @@ class AnalysisConfig:
         return cls(
             data_loader=DataLoaderConfig.from_dict(
                 config["data_loader"] if "data_loader" in config else {}
+            ),
+            data_process=ProcessConfig.from_dict(
+                config["data_process"] if "data_process" in config else {}
             ),
             models=ModelsToRunConfig.from_dict(
                 config["model"] if "model" in config else {}
@@ -78,49 +82,72 @@ def load_data(
     return df
 
 
-def model(
+def process_data(
     data: pd.DataFrame,
+    config: ProcessConfig,
+    display: ModellingDisplay,
+) -> AnalysisState:
+    if not display.is_live:
+        display.start()
+    analysis_state = AnalysisState(data=data)
+
+    display.update_header("Running data processing methods")
+    display.update_logs(
+        f"Enabled processors: {[registry_info(proc).name for proc in config.enabled_processors]}"
+    )
+    with display.capture_logs():
+        for processor in config.enabled_processors:
+            display.update_header(f"Running processor {registry_info(processor).name}")
+            analysis_state = processor(analysis_state, display=display)
+
+    if display.is_live:
+        display.stop()
+    return analysis_state
+
+
+def model(
+    analysis_state: AnalysisState,
     model_config: ModelsToRunConfig,
     checker_config: CheckerConfig,
     platform_config: PlatformConfig,
     display: ModellingDisplay,
 ):
-    analysis_state = AnalysisState(data=data)
-    display.setupt_for_modelling()
-    configure_computation_platform(
-        platform_config=platform_config,
-        display=display,
-    )
-
-    if not display.is_live:
-        display.start()
-
-    with display.capture_logs():
-        for model_analysis_state in model_config.build_models(data):
-            # checks before fitting e.g. prior predictive checks
-            model_checks(
-                model_analysis_state=model_analysis_state,
-                checker_config=checker_config,
-                display=display,
-            )
-            if not display.is_live:
-                display.start()
-
-            fit(model_analysis_state=model_analysis_state, display=display)
-
-            # checks after fitting e.g. posterior predictive checks
-            model_checks(
-                model_analysis_state=model_analysis_state,
-                checker_config=checker_config,
-                display=display,
-            )
-
-            analysis_state.add_model(model_analysis_state)
-
-    if display.is_live:
-        display.stop()
-
     return analysis_state
+    # display.setupt_for_modelling()
+    # configure_computation_platform(
+    #     platform_config=platform_config,
+    #     display=display,
+    # )
+
+    # if not display.is_live:
+    #     display.start()
+
+    # with display.capture_logs():
+    #     for model_analysis_state in model_config.build_models(data):
+    #         # checks before fitting e.g. prior predictive checks
+    #         model_checks(
+    #             model_analysis_state=model_analysis_state,
+    #             checker_config=checker_config,
+    #             display=display,
+    #         )
+    #         if not display.is_live:
+    #             display.start()
+
+    #         fit(model_analysis_state=model_analysis_state, display=display)
+
+    #         # checks after fitting e.g. posterior predictive checks
+    #         model_checks(
+    #             model_analysis_state=model_analysis_state,
+    #             checker_config=checker_config,
+    #             display=display,
+    #         )
+
+    #         analysis_state.add_model(model_analysis_state)
+
+    # if display.is_live:
+    #     display.stop()
+
+    # return analysis_state
 
 
 def model_checks(

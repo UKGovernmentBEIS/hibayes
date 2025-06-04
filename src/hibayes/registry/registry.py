@@ -7,7 +7,7 @@ from typing import Any, Callable, Literal, cast
 
 from pydantic_core import to_jsonable_python
 
-RegistryType = Literal["analyser", "checker", "communicator"]
+RegistryType = Literal["processor", "analyser", "checker", "communicator"]
 
 obj_type = type
 

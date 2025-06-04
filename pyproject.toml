@@ -39,6 +39,7 @@ dev = ["pytest>=7.0.0", "pytest-cov>=4.0.0", "pytest-mock>=3.10.0", "pre-commit>
 
 [project.scripts]
 hibayes-load = "hibayes.cli.load:main"
+hibayes-process = "hibayes.cli.process:main"
 hibayes-model = "hibayes.cli.model:main"
 hibayes-comm = "hibayes.cli.communicate:main"
 hibayes-full = "hibayes.cli.full:main"
