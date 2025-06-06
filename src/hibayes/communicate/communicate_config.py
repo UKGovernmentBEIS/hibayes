@@ -55,9 +55,9 @@ class CommunicateConfig:
                 cls._load_custom_communicate(custom_communicate_config)
             )
 
-        communicate_config = config.get("communicate", None)
-        if isinstance(communicate_config, list):
-            for communicate in communicate_config:
+        communicate_section = config.get("communicate", None)
+        if isinstance(communicate_section, list):
+            for communicate in communicate_section:
                 if isinstance(communicate, dict):
                     communicate_name, communicate_config = next(
                         iter(communicate.items())
@@ -74,12 +74,12 @@ class CommunicateConfig:
                             RegistryInfo(type="communicator", name=communicate_name)
                         )()
                     )
-        elif isinstance(communicate_config, dict):
-            for communicate_name, kwargs in communicate_config.items():
+        elif isinstance(communicate_section, dict):
+            for communicate_name, communicate_config in communicate_section.items():
                 communicator = registry_get(
                     RegistryInfo(type="communicator", name=communicate_name)
                 )
-                enabled_communicators.append(communicator(**kwargs))
+                enabled_communicators.append(communicator(**communicate_config))
 
         return cls(enabled_communicators=enabled_communicators)
 

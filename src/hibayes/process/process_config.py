@@ -50,9 +50,9 @@ class ProcessConfig:
         if custom_process_config := config.get("custom_data_process", None):
             enabled_processors.extend(cls._load_custom_process(custom_process_config))
 
-        process_config = config.get("data_process", None)
-        if isinstance(process_config, list):
-            for process in process_config:
+        process_section = config.get("data_process", None)
+        if isinstance(process_section, list):
+            for process in process_section:
                 if isinstance(process, dict):
                     process_name, process_config = next(iter(process.items()))
                     enabled_processors.append(
@@ -67,12 +67,12 @@ class ProcessConfig:
                             RegistryInfo(type="processor", name=process_name)
                         )()
                     )
-        elif isinstance(process_config, dict):
-            for process_name, kwargs in process_config.items():
+        elif isinstance(process_section, dict):
+            for process_name, process_config in process_section.items():
                 processor = registry_get(
                     RegistryInfo(type="processor", name=process_name)
                 )
-                enabled_processors.append(processor(**kwargs))
+                enabled_processors.append(processor(**process_config))
 
         return cls(enabled_processors=enabled_processors)
 
