@@ -7,13 +7,13 @@ from typing import Any, Callable, Literal, cast
 
 from pydantic_core import to_jsonable_python
 
-RegistryType = Literal["processor", "analyser", "checker", "communicator"]
+RegistryType = Literal["processor", "analyser", "checker", "communicator", "model"]
 
 obj_type = type
 
 REGISTRY_INFO = "__registry_info__"
 REGISTRY_PARAMS = "__registry_params__"
-_registry: dict[str, object] = {}
+_registry: dict[str, Callable[..., Any]] = {}
 
 
 @dataclass
@@ -27,26 +27,30 @@ def registry_key(type: RegistryType, name: str) -> str:
     return f"{type}:{name}"
 
 
-def registry_get(registry_info: RegistryInfo) -> object | None:
+def registry_get(registry_info: RegistryInfo) -> Callable[..., Any]:
     """
-    Get an object from the registry.
+    Get a callable from the registry.
 
     Args:
         registry_info: The registry info.
 
     Returns:
-        The object if found, None otherwise.
+        The registered callable (class or function).
 
+    Raises:
+        KeyError: If the requested object is not found in the registry.
     """
-    # check if the object is in the registry
-    if registry_key(registry_info.type, registry_info.name) not in _registry:
+    key = registry_key(registry_info.type, registry_info.name)
+
+    if key not in _registry:
         raise KeyError(
-            f"It looks like there is no registered {registry_info.name} with @{registry_info.type}"
+            f"No registered {registry_info.name} found with @{registry_info.type}"
         )
-    return _registry.get(registry_key(registry_info.type, registry_info.name))
+
+    return _registry[key]
 
 
-def registry_add(o: object, info: RegistryInfo) -> None:
+def registry_add(o: Callable, info: RegistryInfo) -> None:
     r"""Add an object to the registry.
 
     Add the passed object to the registry using the RegistryInfo
@@ -58,6 +62,10 @@ def registry_add(o: object, info: RegistryInfo) -> None:
         o (object): Object to be registered (Metric, Solver, etc.)
         info (RegistryInfo): Metadata (name, etc.) for object.
     """
+    if not callable(o):
+        raise TypeError(
+            f"Object {o} is not callable. Only callables can be registered."
+        )
     # tag the object
     setattr(o, REGISTRY_INFO, info)
 
@@ -167,9 +175,8 @@ def registry_info(o: object) -> RegistryInfo:
         return cast(RegistryInfo, info)
     else:
         name = getattr(o, "__name__", "unknown")
-        decorator = " @analyser " if name == "analyser" else " "
         raise ValueError(
-            f"Object '{name}' does not have registry info. Did you forget to add a{decorator}decorator somewhere?"
+            f"Object '{name}' does not have registry info. Did you forget to add a decorator somewhere?"
         )
 
 
