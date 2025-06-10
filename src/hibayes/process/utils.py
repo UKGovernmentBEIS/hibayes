@@ -16,10 +16,11 @@ def infer_jax_dtype(pandas_series: pd.Series) -> jnp.dtype:
             return jnp.uint64
     # flt types
     elif pandas_dtype.kind == "f":  # floating point
-        if pandas_dtype.itemsize <= 4:
-            return jnp.float32
-        else:
-            return jnp.float64
+        return jnp.float32  # no float64 for GPU performance
+
+    # bool type
+    elif pandas_dtype.kind == "b":  # boolean
+        return jnp.bool_
     raise ValueError(
         f"Unsupported pandas dtype '{pandas_dtype}' for conversion to JAX dtype."
     )

@@ -1,12 +1,17 @@
+from __future__ import annotations
+
 from functools import wraps
 from typing import (
+    TYPE_CHECKING,
     Callable,
     Protocol,
 )
 
-from ..analysis_state import AnalysisState
 from ..registry import RegistryInfo, registry_add, registry_tag
 from ..ui import ModellingDisplay
+
+if TYPE_CHECKING:
+    from ..analysis import AnalysisState
 
 
 class DataProcessor(Protocol):

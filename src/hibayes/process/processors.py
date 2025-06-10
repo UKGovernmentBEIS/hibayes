@@ -1,13 +1,17 @@
-from typing import Any, Dict, List, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 from jax import numpy as jnp
 
-from ..analysis_state import AnalysisState
-from ..ui import ModellingDisplay
 from ._process import DataProcessor, process
 from .utils import infer_jax_dtype
+
+if TYPE_CHECKING:
+    from ..analysis import AnalysisState
+    from ..ui import ModellingDisplay
 
 Features = Dict[str, float | int | jnp.ndarray | np.ndarray]
 Coords = Dict[
@@ -61,14 +65,10 @@ def extract_observed_feature(
 
 @process
 def extract_features(
-    feature_names: List[str] = ["model", "task"],
-) -> DataProcessor:
+    feature_names: List[str] = ["score"],
+):
     """
-    Extract default features from the data
-
-    Args:
-        feature_names: The names of the features to extract from the data.
-        e.g. ["model", "task"] will extract the model and task columns from the data.
+    Simply extract features from the dataset. Each feature should be a column in the dataset. No indexing or factorization is done here.
     """
 
     def process(
@@ -77,26 +77,67 @@ def extract_features(
     ) -> AnalysisState:
         if not all(col in state.processed_data.columns for col in feature_names):
             raise ValueError(
-                f"Processed data must contain {feature_names} columns. Either write a custom processor, or use map_columns processor to map the columns to these names. Or maybe you forgot to add a groupby processing step before this one?"
+                f"Processed data must contain {feature_names} columns but only contains {state.processed_data.columns.tolist()}. Either write a custom processor, or use map_columns processor to map the columns to these names."
+            )
+
+        features: Features = {}
+        for feature_name in feature_names:
+            dtype = infer_jax_dtype(state.processed_data[feature_name])
+            features[feature_name] = jnp.array(
+                state.processed_data[feature_name].values, dtype=dtype
+            )
+            if display:
+                display.logger.info(f"Extracted '{feature_name}' with dtype: {dtype}")
+
+        if state.features:
+            state.features.update(features)
+        else:
+            state.features = features
+
+        return state
+
+    return process
+
+
+@process
+def extract_predictors(
+    predictor_names: List[str] = ["model", "task"],
+) -> DataProcessor:
+    """
+    Extract predictors from the data used in the GLM. For each predictor codes and
+    indexes are extracted.
+
+    Args:
+        predictor_names: The names of the features to extract from the data.
+        e.g. ["model", "task"] will extract the model and task columns from the data.
+    """
+
+    def process(
+        state: AnalysisState,
+        display: ModellingDisplay | None = None,
+    ) -> AnalysisState:
+        if not all(col in state.processed_data.columns for col in predictor_names):
+            raise ValueError(
+                f"Processed data must contain {predictor_names} columns but only contains {state.processed_data.columns.tolist()}. Either write a custom processor, or use map_columns processor to map the columns to these names. Or maybe you forgot to add a groupby processing step before this one?"
             )
         features: Features = {}
         coords: Coords = {}
         dims: Dims = {}
-        for feature_name in feature_names:
-            series = state.processed_data[feature_name]
+        for predictor_name in predictor_names:
+            series = state.processed_data[predictor_name]
             feature_code, feature_index = pd.factorize(series, sort=True)
-            features[feature_name + "_index"] = jnp.asarray(
+            features[predictor_name + "_index"] = jnp.asarray(
                 feature_code,
                 dtype=jnp.int32,
             )
-            features["num_" + feature_name] = len(feature_index)
+            features["num_" + predictor_name] = len(feature_index)
 
-            coords[feature_name] = feature_index.tolist()
-            dims[feature_name + "_index"] = [feature_name]
+            coords[predictor_name] = feature_index.tolist()
+            dims[predictor_name + "_effects"] = [predictor_name]
 
             if display:
                 display.logger.info(
-                    f"Extracted '{feature_name}' -> '{feature_name}_index'"
+                    f"Extracted '{predictor_name}' -> '{predictor_name}_index'"
                 )
         if state.features:
             state.features.update(features)
@@ -177,6 +218,7 @@ def groupby(
 ) -> DataProcessor:
     """
     Group the data by specified columns and aggregate scores for binomial models.
+    adds n_correct and n_total columsn to the dataset.
 
     Args:
         groupby_columns: A list of columns to group by.

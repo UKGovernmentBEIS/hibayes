@@ -15,6 +15,7 @@ from hibayes.process import (
     drop_rows_with_missing_features,
     extract_features,
     extract_observed_feature,
+    extract_predictors,
     groupby,
     map_columns,
     process,
@@ -183,8 +184,270 @@ class TestExtractFeatures:
     def test_extract_features_default(
         self, sample_analysis_state: AnalysisState, mock_display: ModellingDisplay
     ):
-        """Test extracting default features (model, task)."""
+        """Test extracting default 'score' feature."""
         processor = extract_features()
+        result = processor(sample_analysis_state, mock_display)
+
+        assert result.features is not None
+        assert "score" in result.features
+        assert isinstance(result.features["score"], jnp.ndarray)
+        assert len(result.features["score"]) == 4
+        assert jnp.allclose(result.features["score"], jnp.array([0.8, 0.9, 0.7, 0.85]))
+
+        # Check logging
+        mock_display.logger.info.assert_called_once()
+        call_args = mock_display.logger.info.call_args[0][0]
+        assert "Extracted 'score' with dtype:" in call_args
+
+    def test_extract_features_multiple_features(
+        self, sample_analysis_state: AnalysisState, mock_display: ModellingDisplay
+    ):
+        """Test extracting multiple features."""
+        processor = extract_features(feature_names=["score", "difficulty"])
+        result = processor(sample_analysis_state, mock_display)
+
+        assert result.features is not None
+        assert "score" in result.features
+        assert "difficulty" in result.features
+        assert isinstance(result.features["score"], jnp.ndarray)
+        assert isinstance(result.features["difficulty"], jnp.ndarray)
+        assert len(result.features["score"]) == 4
+        assert len(result.features["difficulty"]) == 4
+
+        # Check values
+        assert jnp.allclose(result.features["score"], jnp.array([0.8, 0.9, 0.7, 0.85]))
+        assert jnp.allclose(
+            result.features["difficulty"], jnp.array([0.2, 0.4, 0.3, 0.5])
+        )
+
+        # Check logging - should log for each feature
+        assert mock_display.logger.info.call_count == 2
+
+    def test_extract_features_custom_feature_names(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test extracting custom feature names."""
+        processor = extract_features(feature_names=["difficulty"])
+        result = processor(sample_analysis_state)
+
+        assert result.features is not None
+        assert "difficulty" in result.features
+        assert "score" not in result.features  # Should not be included
+        assert jnp.allclose(
+            result.features["difficulty"], jnp.array([0.2, 0.4, 0.3, 0.5])
+        )
+
+    def test_extract_features_missing_column(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test error when feature column doesn't exist."""
+        processor = extract_features(feature_names=["nonexistent"])
+
+        with pytest.raises(
+            ValueError, match=r"Processed data must contain.*nonexistent.*"
+        ):
+            processor(sample_analysis_state)
+
+    def test_extract_features_partial_missing_columns(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test error when some feature columns don't exist."""
+        processor = extract_features(feature_names=["score", "nonexistent"])
+
+        with pytest.raises(
+            ValueError, match=r"Processed data must contain.*nonexistent.*"
+        ):
+            processor(sample_analysis_state)
+
+    def test_extract_features_dtype_inference(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test that JAX dtype is inferred correctly for different types."""
+        # Add integer column to test data
+        sample_analysis_state.processed_data = sample_analysis_state.data.copy()
+        sample_analysis_state.processed_data["int_feature"] = [1, 0, 1, 0]
+        sample_analysis_state.processed_data["float32_feature"] = pd.Series(
+            [1.0, 2.0, 3.0, 4.0], dtype="float32"
+        )
+
+        print(
+            sample_analysis_state.processed_data["score"].dtype
+        )  # Should be float64 by default
+        print(sample_analysis_state.processed_data["score"].dtype.itemsize)
+
+        processor = extract_features(
+            feature_names=["int_feature", "float32_feature", "score"]
+        )
+        result = processor(sample_analysis_state)
+        print(result.features["score"].dtype)
+
+        assert result.features["int_feature"].dtype == jnp.int32
+        assert result.features["float32_feature"].dtype == jnp.float32
+        assert result.features["score"].dtype == jnp.float32  # Default float type
+
+    def test_extract_features_updates_existing_features(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test that processor updates existing features dict."""
+        sample_analysis_state.features = {"existing": jnp.array([1, 2, 3, 4])}
+
+        processor = extract_features(feature_names=["score"])
+        result = processor(sample_analysis_state)
+
+        assert "existing" in result.features
+        assert "score" in result.features
+        assert len(result.features) == 2
+
+    def test_extract_features_no_existing_features(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test processor works when no existing features dict."""
+        sample_analysis_state.features = None
+
+        processor = extract_features(feature_names=["score"])
+        result = processor(sample_analysis_state)
+
+        assert result.features is not None
+        assert "score" in result.features
+        assert len(result.features) == 1
+
+    def test_extract_features_no_display(self, sample_analysis_state: AnalysisState):
+        """Test processor works without display object."""
+        processor = extract_features(feature_names=["score"])
+        result = processor(sample_analysis_state, display=None)
+
+        assert result.features is not None
+        assert "score" in result.features
+
+    def test_extract_features_empty_feature_list(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test processor with empty feature list."""
+        processor = extract_features(feature_names=[])
+        result = processor(sample_analysis_state)
+
+        # Should not modify features dict if it exists
+        if sample_analysis_state.features is not None:
+            assert result.features == sample_analysis_state.features
+        else:
+            assert result.features == {}
+
+    def test_extract_features_preserves_feature_order(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test that features are extracted in the specified order."""
+        processor = extract_features(feature_names=["difficulty", "score"])
+        result = processor(sample_analysis_state)
+
+        # Check that both features are present
+        assert "difficulty" in result.features
+        assert "score" in result.features
+
+        # In Python 3.7+, dict order is preserved
+        feature_keys = list(result.features.keys())
+        assert feature_keys.index("difficulty") < feature_keys.index("score")
+
+    def test_extract_features_with_nan_values(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test processor handles NaN values correctly."""
+        # Add NaN values to test data
+        sample_analysis_state.processed_data = sample_analysis_state.data.copy()
+        sample_analysis_state.processed_data.loc[0, "score"] = float("nan")
+
+        processor = extract_features(feature_names=["score"])
+        result = processor(sample_analysis_state)
+
+        assert result.features is not None
+        assert "score" in result.features
+        assert jnp.isnan(result.features["score"][0])
+
+    def test_extract_features_with_unsupported_dtype(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test error when column has unsupported dtype for JAX conversion."""
+        # Add string column which can't be converted to JAX array
+        sample_analysis_state.processed_data = sample_analysis_state.data.copy()
+        sample_analysis_state.processed_data["string_feature"] = ["a", "b", "c", "d"]
+
+        processor = extract_features(feature_names=["string_feature"])
+
+        with pytest.raises(ValueError, match="Unsupported pandas dtype"):
+            processor(sample_analysis_state)
+
+    def test_extract_features_error_message_format(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test that error message format is correct and informative."""
+        processor = extract_features(feature_names=["missing1", "missing2"])
+
+        with pytest.raises(ValueError) as exc_info:
+            processor(sample_analysis_state)
+
+        error_msg = str(exc_info.value)
+        assert "missing1" in error_msg
+        assert "missing2" in error_msg
+        assert "score" in error_msg  # Should show available columns
+        assert "model" in error_msg
+        assert "task" in error_msg
+        assert "difficulty" in error_msg
+
+    def test_extract_features_with_boolean_column(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test processor with boolean column."""
+        sample_analysis_state.processed_data = sample_analysis_state.data.copy()
+        sample_analysis_state.processed_data["bool_feature"] = [
+            True,
+            False,
+            True,
+            False,
+        ]
+
+        processor = extract_features(feature_names=["bool_feature"])
+        result = processor(sample_analysis_state)
+
+        assert result.features is not None
+        assert "bool_feature" in result.features
+        # Boolean should be converted to int (True=1, False=0)
+        expected = jnp.array([1, 0, 1, 0], dtype=jnp.int32)
+        assert jnp.array_equal(result.features["bool_feature"], expected)
+
+    def test_extract_features_logging_content(
+        self, sample_analysis_state: AnalysisState, mock_display: ModellingDisplay
+    ):
+        """Test that logging contains correct information."""
+        processor = extract_features(feature_names=["score"])
+        _ = processor(sample_analysis_state, mock_display)
+
+        # Check the logged message contains expected information
+        mock_display.logger.info.assert_called_once()
+        call_args = mock_display.logger.info.call_args[0][0]
+        assert "Extracted 'score'" in call_args
+        assert "dtype:" in call_args
+        assert "float32" in call_args  # Expected dtype for float columns
+
+    def test_extract_features_with_duplicate_names(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test processor handles duplicate feature names."""
+        processor = extract_features(feature_names=["score", "score"])
+        result = processor(sample_analysis_state)
+
+        # Should only have one 'score' feature (dict keys are unique)
+        assert result.features is not None
+        assert "score" in result.features
+        assert len([k for k in result.features.keys() if k == "score"]) == 1
+
+
+class TestExtractPredictors:
+    """Test extract_predictors processor."""
+
+    def test_extract_predictors_default(
+        self, sample_analysis_state: AnalysisState, mock_display: ModellingDisplay
+    ):
+        """Test extracting default predictors (model, task)."""
+        processor = extract_predictors()
         result = processor(sample_analysis_state, mock_display)
 
         # Check features
@@ -209,15 +472,17 @@ class TestExtractFeatures:
 
         # Check dims
         assert result.dims is not None
-        assert result.dims["model_index"] == ["model"]
-        assert result.dims["task_index"] == ["task"]
+        assert result.dims["model_effects"] == ["model"]
+        assert result.dims["task_effects"] == ["task"]
 
         # Check logging
         assert mock_display.logger.info.call_count == 2
 
-    def test_extract_features_custom_names(self, sample_analysis_state: AnalysisState):
-        """Test extracting custom feature names."""
-        processor = extract_features(feature_names=["task"])
+    def test_extract_predictors_custom_names(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test extracting custom predictor names."""
+        processor = extract_predictors(predictor_names=["task"])
         result = processor(sample_analysis_state)
 
         assert result.features is not None
@@ -225,18 +490,20 @@ class TestExtractFeatures:
         assert "num_task" in result.features
         assert "model_index" not in result.features  # Should not be included
 
-    def test_extract_features_missing_columns(
+    def test_extract_predictors_missing_columns(
         self, sample_analysis_state: AnalysisState
     ):
-        """Test error when feature columns don't exist."""
-        processor = extract_features(feature_names=["nonexistent"])
+        """Test error when predictor columns don't exist."""
+        processor = extract_predictors(predictor_names=["nonexistent"])
 
         with pytest.raises(ValueError, match=r".*nonexistent.*"):
             processor(sample_analysis_state)
 
-    def test_extract_features_factorization(self, sample_analysis_state: AnalysisState):
+    def test_extract_predictors_factorization(
+        self, sample_analysis_state: AnalysisState
+    ):
         """Test that factorization produces correct indices."""
-        processor = extract_features(feature_names=["model"])
+        processor = extract_predictors(predictor_names=["model"])
         result = processor(sample_analysis_state)
 
         # Should have indices 0, 0, 1, 1 (claude=0, gpt-4=1 when sorted)
@@ -245,7 +512,7 @@ class TestExtractFeatures:
         )  # gpt-4, gpt-4, claude, claude
         assert jnp.array_equal(result.features["model_index"], expected_indices)
 
-    def test_extract_features_updates_existing_state(
+    def test_extract_predictors_updates_existing_state(
         self, sample_analysis_state: AnalysisState
     ):
         """Test that processor updates existing features/coords/dims."""
@@ -253,7 +520,7 @@ class TestExtractFeatures:
         sample_analysis_state.coords = {"existing_coord": ["a"]}
         sample_analysis_state.dims = {"existing_dim": ["x"]}
 
-        processor = extract_features(feature_names=["model"])
+        processor = extract_predictors(predictor_names=["model"])
         result = processor(sample_analysis_state)
 
         # Should preserve existing
@@ -264,7 +531,7 @@ class TestExtractFeatures:
         # Should add new
         assert "model_index" in result.features
         assert "model" in result.coords
-        assert "model_index" in result.dims
+        assert "model_effects" in result.dims
 
 
 class TestDropRowsWithMissingFeatures:
@@ -455,7 +722,9 @@ class TestUtils:
         series_float64 = pd.Series([1.0, 2.0, 3.0], dtype="float64")
 
         assert infer_jax_dtype(series_float32) == jnp.float32
-        assert infer_jax_dtype(series_float64) == jnp.float64
+        assert (
+            infer_jax_dtype(series_float64) == jnp.float32
+        )  # 32 preferred for GPU performance
 
     def test_infer_jax_dtype_int(self):
         """Test JAX dtype inference for integer types."""
@@ -675,6 +944,7 @@ class TestProcessIntegration:
             ),
             extract_observed_feature(),
             extract_features(),
+            extract_predictors(),
         ]
 
         # Run pipeline
@@ -784,7 +1054,7 @@ class TestProcessIntegration:
         assert state.dims is None
 
         # Second processor should build on first
-        processor2 = extract_features()
+        processor2 = extract_predictors()
         state = processor2(state)
 
         assert "obs" in state.features  # From first processor
@@ -955,7 +1225,7 @@ class TestProcessorErrorHandling:
         state.coords = None
         state.dims = None
 
-        processor = extract_features()
+        processor = extract_predictors()
         result = processor(state)
 
         # Should initialize new dicts
@@ -1011,7 +1281,7 @@ class TestProcessorPerformance:
         state = AnalysisState(data=data)
 
         # Should process without issues
-        processor = extract_features()
+        processor = extract_predictors()
         result = processor(state)
 
         assert len(result.features["model_index"]) == n_rows
