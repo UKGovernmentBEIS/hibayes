@@ -4,6 +4,7 @@ import pathlib
 import pandas as pd
 
 from ..analysis import AnalysisConfig, process_data
+from ..platform import configure_computation_platform
 from ..ui import ModellingDisplay
 
 
@@ -23,6 +24,11 @@ def run_process(args):
     config = AnalysisConfig.from_yaml(args.config)
     display = ModellingDisplay()
     out = pathlib.Path(args.out)
+
+    configure_computation_platform(
+        platform_config=config.platform,
+        display=display,
+    )
 
     out.mkdir(parents=True, exist_ok=True)
 

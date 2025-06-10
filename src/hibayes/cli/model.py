@@ -2,22 +2,27 @@ import argparse
 import pathlib
 
 from ..analysis import AnalysisConfig, AnalysisState, model
+from ..platform import configure_computation_platform
 from ..ui import ModellingDisplay
 
 
 def run_model(args):
-    analysis_state = AnalysisState.load(path=pathlib.Path(args.analysis_state))
     config = AnalysisConfig.from_yaml(args.config)
     display = ModellingDisplay()
     out = pathlib.Path(args.out)
 
+    configure_computation_platform(
+        platform_config=config.platform,
+        display=display,
+    )
+
     out.mkdir(parents=True, exist_ok=True)
 
+    analysis_state = AnalysisState.load(path=pathlib.Path(args.analysis_state))
     analysis_state = model(
         analysis_state=analysis_state,
-        model_config=config.models,
+        models_to_run_config=config.models,
         checker_config=config.checkers,
-        platform_config=config.platform,
         display=display,
     )
     analysis_state.save(path=out)

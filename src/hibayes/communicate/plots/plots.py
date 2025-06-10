@@ -34,9 +34,10 @@ def forest_plot(
             models_to_run = state.models
 
         for model_analysis in models_to_run:
+            print(model_analysis.model_config)
             if model_analysis.is_fitted:
                 if vars is None:
-                    vars = model_analysis.model_builder.config.main_effect_params
+                    vars = model_analysis.model_config.get_plot_params()
                 az.plot_forest(
                     model_analysis.inference_data,
                     var_names=vars,
@@ -131,7 +132,7 @@ def pair_plot(
         for model_analysis in models_to_run:
             if model_analysis.is_fitted:
                 if vars is None:
-                    vars = model_analysis.model_builder.config.main_effect_params
+                    vars = model_analysis.model_config.get_plot_params()
                 az.plot_pair(
                     model_analysis.inference_data,
                     var_names=vars,

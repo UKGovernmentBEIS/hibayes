@@ -1,9 +1,14 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import arviz as az
 import jax
 from numpyro.infer import HMC, MCMC, NUTS
 
-from ..analysis_state import ModelAnalysisState
-from ..ui import ModellingDisplay
+if TYPE_CHECKING:
+    from ..analysis_state import ModelAnalysisState
+    from ..ui import ModellingDisplay
 
 
 def fit(
@@ -48,7 +53,7 @@ def fit(
     try:
         mcmc.run(
             rng_key,
-            **model_analysis_state.features,
+            model_analysis_state.features,
             extra_fields=("potential_energy", "energy"),
         )
         if display:
@@ -63,6 +68,9 @@ def fit(
             display.update_stat("Errors encountered", str(e))
         raise
 
+    print("coords and dims")
+    print(model_analysis_state.coords)
+    print(model_analysis_state.dims)
     idata: az.InferenceData = az.from_numpyro(
         mcmc,
         coords=model_analysis_state.coords,

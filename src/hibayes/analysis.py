@@ -10,9 +10,7 @@ from .load import (
     DataLoaderConfig,
     get_sample_df,
 )
-from .model import (
-    ModelsToRunConfig,
-)
+from .model import ModelsToRunConfig, fit
 from .platform import PlatformConfig
 from .process import ProcessConfig
 from .registry import registry_info
@@ -107,47 +105,50 @@ def process_data(
 
 def model(
     analysis_state: AnalysisState,
-    model_config: ModelsToRunConfig,
+    models_to_run_config: ModelsToRunConfig,
     checker_config: CheckerConfig,
-    platform_config: PlatformConfig,
     display: ModellingDisplay,
 ):
+    display.setupt_for_modelling()
+
+    if not display.is_live:
+        display.start()
+
+    with display.capture_logs():
+        for model, model_config in models_to_run_config.enabled_models:
+            model_analysis_state = ModelAnalysisState(
+                model=model,
+                model_config=model_config,
+                features=analysis_state.features,
+                coords=analysis_state.coords,
+                dims=analysis_state.dims,
+            )
+
+            display.update_header(f"Running model {model_analysis_state.model_name}")
+            # checks before fitting e.g. prior predictive checks
+            model_checks(
+                model_analysis_state=model_analysis_state,
+                checker_config=checker_config,
+                display=display,
+            )
+            if not display.is_live:
+                display.start()
+
+            fit(model_analysis_state=model_analysis_state, display=display)
+
+            # checks after fitting e.g. posterior predictive checks
+            model_checks(
+                model_analysis_state=model_analysis_state,
+                checker_config=checker_config,
+                display=display,
+            )
+
+            analysis_state.add_model(model_analysis_state)
+
+    if display.is_live:
+        display.stop()
+
     return analysis_state
-    # display.setupt_for_modelling()
-    # configure_computation_platform(
-    #     platform_config=platform_config,
-    #     display=display,
-    # )
-
-    # if not display.is_live:
-    #     display.start()
-
-    # with display.capture_logs():
-    #     for model_analysis_state in model_config.build_models(data):
-    #         # checks before fitting e.g. prior predictive checks
-    #         model_checks(
-    #             model_analysis_state=model_analysis_state,
-    #             checker_config=checker_config,
-    #             display=display,
-    #         )
-    #         if not display.is_live:
-    #             display.start()
-
-    #         fit(model_analysis_state=model_analysis_state, display=display)
-
-    #         # checks after fitting e.g. posterior predictive checks
-    #         model_checks(
-    #             model_analysis_state=model_analysis_state,
-    #             checker_config=checker_config,
-    #             display=display,
-    #         )
-
-    #         analysis_state.add_model(model_analysis_state)
-
-    # if display.is_live:
-    #     display.stop()
-
-    # return analysis_state
 
 
 def model_checks(
