@@ -30,7 +30,7 @@ stages:
     params:
       - files/config.yaml:
         - model
-        - checkers
+        - check
         - platform
   communicate:
     cmd: hibayes-comm --config files/config.yaml --analysis_state .output/model/ --out .output/communicate/
@@ -41,4 +41,4 @@ stages:
     - .output/communicate/
     params:
       - files/config.yaml:
-        - communicators
+        - communicate

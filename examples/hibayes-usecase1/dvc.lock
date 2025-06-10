@@ -5,8 +5,8 @@ stages:
     deps:
     - path: ../../src/hibayes/
       hash: md5
-      md5: 428e9134af2cbe13a668d47f650e369c.dir
-      size: 507122
+      md5: fc161cba34cdfafd61aec8a65793adb6.dir
+      size: 494858
       nfiles: 111
     - path: files/custom_extractor.py
       hash: md5
@@ -31,14 +31,51 @@ stages:
       md5: 7f58c77572db284e71aaf83c932f64da.dir
       size: 132091
       nfiles: 1
+  process:
+    cmd: hibayes-process --config files/config.yaml --data .output/load/data.parquet
+      --out .output/process/
+    deps:
+    - path: ../../src/hibayes/
+      hash: md5
+      md5: fc161cba34cdfafd61aec8a65793adb6.dir
+      size: 494858
+      nfiles: 111
+    - path: .output/load/data.parquet
+      hash: md5
+      md5: cd40c90aeec631bcc6b311eb71c04cff
+      size: 132091
+    params:
+      files/config.yaml:
+        data_process:
+          processors:
+          - map_columns:
+              column_mapping:
+                domain: group
+          - groupby:
+              groupby_columns:
+              - group
+          - extract_features:
+              feature_names:
+              - n_total
+          - extract_predictors:
+              predictor_names:
+              - group
+          - extract_observed_feature:
+              feature_name: n_correct
+    outs:
+    - path: .output/process/
+      hash: md5
+      md5: 21e18c43839b835fa5ec8873b34a42f8.dir
+      size: 132539
+      nfiles: 4
   model:
     cmd: hibayes-model --config files/config.yaml --analysis-state .output/process/
       --out .output/model/
     deps:
     - path: ../../src/hibayes/
       hash: md5
-      md5: 6b3024d2155d173d5644593ca4599d12.dir
-      size: 507028
+      md5: fc161cba34cdfafd61aec8a65793adb6.dir
+      size: 494858
       nfiles: 111
     - path: .output/process/
       hash: md5
@@ -47,8 +84,8 @@ stages:
       nfiles: 4
     params:
       files/config.yaml:
-        checkers:
-          checks:
+        check:
+          checkers:
           - prior_predictive_plot:
               plot_proportion: true
           - r_hat
@@ -71,8 +108,8 @@ stages:
     outs:
     - path: .output/model/
       hash: md5
-      md5: 544d747b762b4637402c6aa436259472.dir
-      size: 2734667
+      md5: 629744056660e25075fd07fac877d37f.dir
+      size: 2668333
       nfiles: 14
   communicate:
     cmd: hibayes-comm --config files/config.yaml --analysis_state .output/model/ --out
@@ -80,17 +117,17 @@ stages:
     deps:
     - path: ../../src/hibayes/
       hash: md5
-      md5: 6b3024d2155d173d5644593ca4599d12.dir
-      size: 507028
+      md5: fc161cba34cdfafd61aec8a65793adb6.dir
+      size: 494858
       nfiles: 111
     - path: .output/model/
       hash: md5
-      md5: 544d747b762b4637402c6aa436259472.dir
-      size: 2734667
+      md5: 629744056660e25075fd07fac877d37f.dir
+      size: 2668333
       nfiles: 14
     params:
       files/config.yaml:
-        communicators:
+        communicate:
           communicate:
           - forest_plot:
               combined: true
@@ -99,43 +136,6 @@ stages:
     outs:
     - path: .output/communicate/
       hash: md5
-      md5: 39e47f8338382a96e8d8a0c8414f3022.dir
-      size: 2602923
-      nfiles: 15
-  process:
-    cmd: hibayes-process --config files/config.yaml --data .output/load/data.parquet
-      --out .output/process/
-    deps:
-    - path: ../../src/hibayes/
-      hash: md5
-      md5: 428e9134af2cbe13a668d47f650e369c.dir
-      size: 507122
-      nfiles: 111
-    - path: .output/load/data.parquet
-      hash: md5
-      md5: cd40c90aeec631bcc6b311eb71c04cff
-      size: 132091
-    params:
-      files/config.yaml:
-        data_process:
-          data_process:
-          - map_columns:
-              column_mapping:
-                domain: group
-          - groupby:
-              groupby_columns:
-              - group
-          - extract_features:
-              feature_names:
-              - n_total
-          - extract_predictors:
-              predictor_names:
-              - group
-          - extract_observed_feature:
-              feature_name: n_correct
-    outs:
-    - path: .output/process/
-      hash: md5
-      md5: 21e18c43839b835fa5ec8873b34a42f8.dir
-      size: 132539
-      nfiles: 4
+      md5: d236202e1761ddc280810341dcf3ac30.dir
+      size: 3598989
+      nfiles: 16

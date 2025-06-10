@@ -55,10 +55,10 @@ class AnalysisConfig:
                 config["model"] if "model" in config else {}
             ),
             checkers=CheckerConfig.from_dict(
-                config["checkers"] if "checkers" in config else {}
+                config["check"] if "check" in config else {}
             ),
             communicate=CommunicateConfig.from_dict(
-                config["communicators"] if "communicators" in config else {}
+                config["communicate"] if "communicate" in config else {}
             ),
             platform=PlatformConfig.from_dict(
                 config["platform"] if "platform" in config else {}

@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import jax.numpy as jnp
+import numpy as np
 import pandas as pd
 import pytest
 import yaml
@@ -243,9 +244,7 @@ class TestExtractFeatures:
         """Test error when feature column doesn't exist."""
         processor = extract_features(feature_names=["nonexistent"])
 
-        with pytest.raises(
-            ValueError, match=r"Processed data must contain.*nonexistent.*"
-        ):
+        with pytest.raises(ValueError, match=r".*nonexistent.*"):
             processor(sample_analysis_state)
 
     def test_extract_features_partial_missing_columns(
@@ -254,9 +253,7 @@ class TestExtractFeatures:
         """Test error when some feature columns don't exist."""
         processor = extract_features(feature_names=["score", "nonexistent"])
 
-        with pytest.raises(
-            ValueError, match=r"Processed data must contain.*nonexistent.*"
-        ):
+        with pytest.raises(ValueError, match=r".*nonexistent.*"):
             processor(sample_analysis_state)
 
     def test_extract_features_dtype_inference(
@@ -776,7 +773,7 @@ class TestProcessConfig:
     def test_process_config_from_dict_list(self):
         """Test ProcessConfig.from_dict with list format."""
         config_dict = {
-            "data_process": [
+            "processors": [
                 "extract_observed_feature",
                 {"extract_features": {"feature_names": ["model"]}},
                 "drop_rows_with_missing_features",
@@ -790,7 +787,7 @@ class TestProcessConfig:
     def test_process_config_from_dict_dict_format(self):
         """Test ProcessConfig.from_dict with dict format."""
         config_dict = {
-            "data_process": {
+            "processors": {
                 "extract_observed_feature": {"feature_name": "accuracy"},
                 "map_columns": {"column_mapping": {"old": "new"}},
             }
@@ -803,7 +800,7 @@ class TestProcessConfig:
     def test_process_config_from_yaml(self, tmp_path: Path):
         """Test ProcessConfig.from_yaml."""
         yaml_content = {
-            "data_process": [
+            "processors": [
                 "extract_observed_feature",
                 {"extract_features": {"feature_names": ["model", "task"]}},
             ]
@@ -817,8 +814,8 @@ class TestProcessConfig:
 
         assert len(config.enabled_processors) == 2
 
-    def test_process_config_custom_processors_loading(self, tmp_path: Path):
-        """Test loading custom processors from external module."""
+    def test_process_config_with_custom_paths(self, tmp_path: Path):
+        """Test loading processors from custom paths."""
         # Create a custom processor module
         custom_module = tmp_path / "custom_processors.py"
         custom_module.write_text(
@@ -836,10 +833,8 @@ def custom_test_processor():
         )
 
         config_dict = {
-            "custom_data_process": {
-                "path": str(custom_module),
-                "processors": ["custom_test_processor"],
-            }
+            "path": str(custom_module),
+            "processors": ["custom_test_processor"],
         }
 
         with patch("hibayes.process.process_config._import_path"):
@@ -847,34 +842,44 @@ def custom_test_processor():
                 mock_processor = MagicMock()
                 mock_registry.return_value = mock_processor
 
-                _ = ProcessConfig.from_dict(config_dict)
+                config = ProcessConfig.from_dict(config_dict)
 
                 mock_registry.assert_called_once()
                 mock_processor.assert_called_once()
+                assert len(config.enabled_processors) == 1
+
+    def test_process_config_with_multiple_custom_paths(self, tmp_path: Path):
+        """Test loading processors from multiple custom paths."""
+        config_dict = {
+            "path": ["/fake/path1", "/fake/path2"],
+            "processors": ["custom_processor"],
+        }
+
+        with patch("hibayes.process.process_config._import_path") as mock_import:
+            with patch("hibayes.process.process_config.registry_get") as mock_registry:
+                mock_processor = MagicMock()
+                mock_registry.return_value = mock_processor
+
+                _ = ProcessConfig.from_dict(config_dict)
+
+                # Should import both paths
+                assert mock_import.call_count == 2
+                mock_import.assert_any_call("/fake/path1")
+                mock_import.assert_any_call("/fake/path2")
 
     def test_process_config_handles_missing_processor(self, tmp_path: Path):
-        """Test that missing processors are skipped with warning."""
+        """Test that missing processors raise KeyError."""
         config_dict = {
-            "custom_data_process": {
-                "path": "/fake/path",
-                "processors": ["nonexistent_processor"],
-            }
+            "path": "/fake/path",
+            "processors": ["nonexistent_processor"],
         }
 
         with patch("hibayes.process.process_config._import_path"):
             with patch(
                 "hibayes.process.process_config.registry_get", side_effect=KeyError
             ):
-                with patch("hibayes.process.process_config.logger") as mock_logger:
-                    with patch.object(ProcessConfig, "DEFAULT_PROCESS", []):
-                        config = ProcessConfig.from_dict(config_dict)
-
-                        mock_logger.warning.assert_called_once()
-                        warning_msg = mock_logger.warning.call_args[0][0]
-                        assert "nonexistent_processor not found" in warning_msg
-
-                        # Should have no processors since custom one failed and defaults are empty
-                        assert len(config.enabled_processors) == 0
+                with pytest.raises(KeyError):
+                    ProcessConfig.from_dict(config_dict)
 
     def test_process_config_from_none(self):
         """Test ProcessConfig.from_dict with None input."""
@@ -883,38 +888,38 @@ def custom_test_processor():
         # Should use defaults
         assert len(config.enabled_processors) == 2
 
-    def test_process_config_custom_processors_dict_format(self, tmp_path: Path):
-        """Test custom processors with dict format for processors."""
-        config_dict = {
-            "custom_data_process": {
-                "path": "/fake/path",
-                "processors": {"custom_processor": {"param1": "value1"}},
-            }
-        }
-
-        with patch("hibayes.process.process_config._import_path"):
-            with patch("hibayes.process.process_config.registry_get") as mock_registry:
-                mock_processor_class = MagicMock()
-                mock_registry.return_value = mock_processor_class
-
-                ProcessConfig.from_dict(config_dict)
-
-                mock_processor_class.assert_called_once_with(param1="value1")
-
     def test_process_config_invalid_processor_format(self, tmp_path: Path):
         """Test error handling for invalid processor format."""
         config_dict = {
-            "custom_data_process": {
-                "path": "/fake/path",
-                "processors": [{"invalid": "format", "too_many": "keys"}],
+            "processors": [{"invalid": "format", "too_many": "keys"}],
+        }
+
+        with pytest.raises(
+            ValueError, match="Each process must be either a string or a dict"
+        ):
+            ProcessConfig.from_dict(config_dict)
+
+    def test_process_config_empty_processors_list(self):
+        """Test ProcessConfig with empty processors list."""
+        config_dict = {"processors": []}
+
+        config = ProcessConfig.from_dict(config_dict)
+
+        # Should use default processors when list is empty
+        assert len(config.enabled_processors) == 2
+
+    def test_process_config_processors_dict_format(self):
+        """Test ProcessConfig with processors in dict format."""
+        config_dict = {
+            "processors": {
+                "extract_observed_feature": {"feature_name": "score"},
+                "extract_features": {"feature_names": ["model", "task"]},
             }
         }
 
-        with patch("hibayes.process.process_config._import_path"):
-            with pytest.raises(
-                ValueError, match="Each process must be either a string or a dict"
-            ):
-                ProcessConfig.from_dict(config_dict)
+        config = ProcessConfig.from_dict(config_dict)
+
+        assert len(config.enabled_processors) == 2
 
 
 class TestProcessIntegration:
@@ -1268,7 +1273,6 @@ class TestProcessorPerformance:
 
     def test_large_dataset_processing(self):
         """Test processors with larger datasets."""
-        # Create larger dataset
         n_rows = 1000
         data = pd.DataFrame(
             {
@@ -1279,8 +1283,6 @@ class TestProcessorPerformance:
         )[:n_rows]
 
         state = AnalysisState(data=data)
-
-        # Should process without issues
         processor = extract_predictors()
         result = processor(state)
 
@@ -1292,10 +1294,8 @@ class TestProcessorPerformance:
         data = pd.DataFrame(
             {"model": ["gpt-4"] * 100, "task": ["math"] * 100, "score": [0.8] * 100}
         )
-
         state = AnalysisState(data=data)
 
-        # First processor should create processed_data copy
         processor1 = extract_observed_feature()
         result = processor1(state)
 
@@ -1308,5 +1308,572 @@ class TestProcessorPerformance:
         processor2 = extract_features()
         result2 = processor2(result)
 
-        # Should be the same object (no unnecessary copying)
         assert id(result2.processed_data) == original_processed_id
+
+
+class TestProcessConfigYAML:
+    """Test ProcessConfig YAML configuration loading."""
+
+    def test_process_config_from_yaml_list_format(self, tmp_path: Path):
+        """Test loading ProcessConfig from YAML with list format."""
+        yaml_content = {
+            "processors": [
+                "extract_observed_feature",
+                {"extract_features": {"feature_names": ["model", "task"]}},
+                "drop_rows_with_missing_features",
+            ]
+        }
+
+        yaml_file = tmp_path / "config.yaml"
+        with open(yaml_file, "w") as f:
+            yaml.dump(yaml_content, f)
+
+        config = ProcessConfig.from_yaml(str(yaml_file))
+        assert len(config.enabled_processors) == 3
+
+    def test_process_config_from_yaml_with_processor_parameters(self, tmp_path: Path):
+        """Test loading ProcessConfig from YAML with processor parameters."""
+        yaml_content = {
+            "processors": [
+                {"extract_observed_feature": {"feature_name": "accuracy"}},
+                {
+                    "extract_features": {
+                        "feature_names": ["model", "task", "difficulty"]
+                    }
+                },
+                {
+                    "map_columns": {
+                        "column_mapping": {"old_model": "model", "old_task": "task"}
+                    }
+                },
+                {"groupby": {"groupby_columns": ["model", "task"]}},
+            ]
+        }
+
+        yaml_file = tmp_path / "config.yaml"
+        with open(yaml_file, "w") as f:
+            yaml.dump(yaml_content, f)
+
+        config = ProcessConfig.from_yaml(str(yaml_file))
+        assert len(config.enabled_processors) == 4
+
+    def test_process_config_from_yaml_with_paths_and_processors(self, tmp_path: Path):
+        """Test loading ProcessConfig from YAML with custom paths."""
+        yaml_content = {
+            "path": ["/fake/custom/path1.py", "/fake/custom/path2.py"],
+            "processors": [
+                "extract_observed_feature",
+                {"extract_features": {"feature_names": ["score"]}},
+            ],
+        }
+
+        yaml_file = tmp_path / "config.yaml"
+        with open(yaml_file, "w") as f:
+            yaml.dump(yaml_content, f)
+
+        with patch("hibayes.process.process_config._import_path") as mock_import:
+            config = ProcessConfig.from_yaml(str(yaml_file))
+            assert mock_import.call_count == 2
+            assert len(config.enabled_processors) == 2
+
+    def test_process_config_from_yaml_error_handling(self, tmp_path: Path):
+        """Test error handling for invalid configurations."""
+        # Test file not found
+        with pytest.raises(FileNotFoundError):
+            ProcessConfig.from_yaml(str(tmp_path / "nonexistent.yaml"))
+
+        # Test invalid YAML syntax
+        invalid_yaml_file = tmp_path / "invalid.yaml"
+        invalid_yaml_file.write_text("invalid: yaml: content: [")
+        with pytest.raises(yaml.YAMLError):
+            ProcessConfig.from_yaml(str(invalid_yaml_file))
+
+        # Test invalid processor format
+        yaml_content = {
+            "processors": [{"invalid_processor": "config", "another_key": "value"}]
+        }
+        yaml_file = tmp_path / "config.yaml"
+        with open(yaml_file, "w") as f:
+            yaml.dump(yaml_content, f)
+
+        with pytest.raises(
+            ValueError, match=r".*Each process must be either a string or a dict*."
+        ):
+            ProcessConfig.from_yaml(str(yaml_file))
+
+    def test_process_config_from_yaml_integration_with_analysis_state(
+        self, tmp_path: Path, sample_analysis_state: AnalysisState
+    ):
+        """Test that processors loaded from YAML work with AnalysisState."""
+        yaml_content = {
+            "processors": [
+                "extract_observed_feature",
+                {"extract_features": {"feature_names": ["score"]}},
+            ]
+        }
+
+        yaml_file = tmp_path / "config.yaml"
+        with open(yaml_file, "w") as f:
+            yaml.dump(yaml_content, f)
+
+        config = ProcessConfig.from_yaml(str(yaml_file))
+
+        state = sample_analysis_state
+        for processor in config.enabled_processors:
+            state = processor(state)
+
+        assert state.features is not None
+        assert "obs" in state.features
+        assert "score" in state.features
+
+
+class TestProcessConfigCustomProcessorIntegration:
+    """Test ProcessConfig with custom processor files and argument passing."""
+
+    def test_process_config_custom_processor_with_args(self, tmp_path: Path):
+        """Test loading custom processor from file with arguments."""
+        custom_module = tmp_path / "custom_processors.py"
+        custom_module.write_text(
+            """
+from hibayes.process import process
+from hibayes.analysis_state import AnalysisState
+from hibayes.ui import ModellingDisplay
+
+@process
+def custom_feature_multiplier(multiplier: float = 1.0, feature_name: str = "score"):
+    def processor_impl(state: AnalysisState, display: ModellingDisplay | None = None) -> AnalysisState:
+        if feature_name not in state.processed_data.columns:
+            raise ValueError(f"Feature {feature_name} not found in processed data")
+
+        state.processed_data[feature_name] = state.processed_data[feature_name] * multiplier
+
+        if state.features and feature_name in state.features:
+            state.features[feature_name] = state.features[feature_name] * multiplier
+
+        return state
+    return processor_impl
+"""
+        )
+
+        yaml_content = {
+            "path": str(custom_module),
+            "processors": [
+                {
+                    "custom_feature_multiplier": {
+                        "multiplier": 2.5,
+                        "feature_name": "score",
+                    }
+                },
+                "extract_observed_feature",
+            ],
+        }
+
+        yaml_file = tmp_path / "config.yaml"
+        with open(yaml_file, "w") as f:
+            yaml.dump(yaml_content, f)
+
+        config = ProcessConfig.from_yaml(str(yaml_file))
+        assert len(config.enabled_processors) == 2
+
+        data = pd.DataFrame(
+            {
+                "model": ["gpt-4", "claude"],
+                "task": ["math", "reading"],
+                "score": [0.8, 0.6],
+            }
+        )
+        state = AnalysisState(data=data)
+
+        state = config.enabled_processors[0](state)  # custom_feature_multiplier
+
+        expected_scores = [0.8 * 2.5, 0.6 * 2.5]
+        assert state.processed_data["score"].tolist() == expected_scores
+
+    def test_process_config_custom_processor_full_pipeline(self, tmp_path: Path):
+        """Test a full pipeline with custom and built-in processors."""
+        custom_module = tmp_path / "pipeline_processors.py"
+        custom_module.write_text(
+            """
+from hibayes.process import process
+from hibayes.analysis_state import AnalysisState
+from hibayes.ui import ModellingDisplay
+
+@process
+def custom_data_cleaner(min_score: float = 0.0, max_score: float = 1.0):
+    def processor_impl(state: AnalysisState, display: ModellingDisplay | None = None) -> AnalysisState:
+        mask = (state.processed_data["score"] >= min_score) & (state.processed_data["score"] <= max_score)
+        state.processed_data = state.processed_data[mask].reset_index(drop=True)
+        return state
+    return processor_impl
+
+@process
+def custom_feature_engineer(score_threshold: float = 0.7):
+    def processor_impl(state: AnalysisState, display: ModellingDisplay | None = None) -> AnalysisState:
+        state.processed_data["high_performer"] = (state.processed_data["score"] >= score_threshold).astype(int)
+        state.processed_data["score_squared"] = state.processed_data["score"] ** 2
+        return state
+    return processor_impl
+"""
+        )
+
+        yaml_content = {
+            "path": str(custom_module),
+            "processors": [
+                {
+                    "map_columns": {
+                        "column_mapping": {"llm_name": "model", "performance": "score"}
+                    }
+                },
+                {"custom_data_cleaner": {"min_score": 0.1, "max_score": 0.9}},
+                {"custom_feature_engineer": {"score_threshold": 0.6}},
+            ],
+        }
+
+        yaml_file = tmp_path / "config.yaml"
+        with open(yaml_file, "w") as f:
+            yaml.dump(yaml_content, f)
+
+        config = ProcessConfig.from_yaml(str(yaml_file))
+
+        assert len(config.enabled_processors) == 3
+
+        data = pd.DataFrame(
+            {
+                "llm_name": ["gpt-4", "claude", "palm", "gpt-3"],
+                "performance": [0.95, 0.05, 0.75, 0.65],  # One will be filtered out
+            }
+        )
+
+        state = AnalysisState(data=data)
+        for processor in config.enabled_processors:
+            state = processor(state)
+
+        # Check column mapping worked
+        assert "model" in state.processed_data.columns
+        assert "score" in state.processed_data.columns
+
+        # Check data cleaning worked
+        assert (
+            len(state.processed_data) == 2
+        )  # 4 -> 2 rows (filtered out 0.05 and 0.95)
+        assert state.processed_data["score"].min() >= 0.1
+
+        # Check feature engineering worked
+        assert "high_performer" in state.processed_data.columns
+        assert "score_squared" in state.processed_data.columns
+
+    def test_process_config_custom_processor_error_handling(self, tmp_path: Path):
+        """Test custom processor error handling."""
+        custom_module = tmp_path / "error_processors.py"
+        custom_module.write_text(
+            """
+from hibayes.process import process
+from hibayes.analysis_state import AnalysisState
+from hibayes.ui import ModellingDisplay
+
+@process
+def custom_error_processor(required_column: str = "nonexistent"):
+    def processor_impl(state: AnalysisState, display: ModellingDisplay | None = None) -> AnalysisState:
+        if required_column not in state.processed_data.columns:
+            raise ValueError(f"Required column {required_column} not found in data")
+        return state
+    return processor_impl
+"""
+        )
+
+        yaml_content = {
+            "path": str(custom_module),
+            "processors": [
+                {"custom_error_processor": {"required_column": "missing_column"}}
+            ],
+        }
+
+        yaml_file = tmp_path / "config.yaml"
+        with open(yaml_file, "w") as f:
+            yaml.dump(yaml_content, f)
+
+        config = ProcessConfig.from_yaml(str(yaml_file))
+        data = pd.DataFrame({"model": ["gpt-4"], "score": [0.8]})
+        state = AnalysisState(data=data)
+
+        with pytest.raises(
+            ValueError, match="Required column missing_column not found"
+        ):
+            config.enabled_processors[0](state)
+
+
+class TestProcessConfigAdvanced:
+    """Advanced tests for ProcessConfig functionality."""
+
+    def test_process_config_processor_order_matters(self, tmp_path: Path):
+        """Test that processor order affects results."""
+        custom_module = tmp_path / "order_processors.py"
+        custom_module.write_text(
+            """
+from hibayes.process import process
+from hibayes.analysis_state import AnalysisState
+from hibayes.ui import ModellingDisplay
+
+@process
+def multiply_score(factor: float = 2.0):
+    def processor_impl(state: AnalysisState, display: ModellingDisplay | None = None) -> AnalysisState:
+        state.processed_data["score"] = state.processed_data["score"] * factor
+        return state
+    return processor_impl
+
+@process
+def add_to_score(value: float = 0.1):
+    def processor_impl(state: AnalysisState, display: ModellingDisplay | None = None) -> AnalysisState:
+        state.processed_data["score"] = state.processed_data["score"] + value
+        return state
+    return processor_impl
+"""
+        )
+
+        # Order 1: multiply then add
+        yaml_content_1 = {
+            "path": str(custom_module),
+            "processors": [
+                {"multiply_score": {"factor": 2.0}},
+                {"add_to_score": {"value": 0.1}},
+            ],
+        }
+
+        # Order 2: add then multiply
+        yaml_content_2 = {
+            "path": str(custom_module),
+            "processors": [
+                {"add_to_score": {"value": 0.1}},
+                {"multiply_score": {"factor": 2.0}},
+            ],
+        }
+
+        yaml_file_1 = tmp_path / "config1.yaml"
+        yaml_file_2 = tmp_path / "config2.yaml"
+
+        with open(yaml_file_1, "w") as f:
+            yaml.dump(yaml_content_1, f)
+        with open(yaml_file_2, "w") as f:
+            yaml.dump(yaml_content_2, f)
+
+        config_1 = ProcessConfig.from_yaml(str(yaml_file_1))
+        config_2 = ProcessConfig.from_yaml(str(yaml_file_2))
+
+        data = pd.DataFrame({"model": ["gpt-4"], "score": [0.5]})
+
+        # Order 1: (0.5 * 2.0) + 0.1 = 1.1
+        state_1 = AnalysisState(data=data.copy())
+        for processor in config_1.enabled_processors:
+            state_1 = processor(state_1)
+
+        # Order 2: (0.5 + 0.1) * 2.0 = 1.2
+        state_2 = AnalysisState(data=data.copy())
+        for processor in config_2.enabled_processors:
+            state_2 = processor(state_2)
+
+        assert state_1.processed_data["score"].iloc[0] == pytest.approx(1.1)
+        assert state_2.processed_data["score"].iloc[0] == pytest.approx(1.2)
+
+    def test_process_config_comprehensive_integration(self, tmp_path: Path):
+        """Comprehensive test combining multiple processor features."""
+        custom_module = tmp_path / "comprehensive_processors.py"
+        custom_module.write_text(
+            """
+from hibayes.process import process
+from hibayes.analysis_state import AnalysisState
+from hibayes.ui import ModellingDisplay
+import numpy as np
+
+@process
+def comprehensive_processor(
+    normalize_scores: bool = True,
+    add_derived_features: bool = True,
+    quality_threshold: float = 0.1
+):
+    def processor_impl(state: AnalysisState, display: ModellingDisplay | None = None) -> AnalysisState:
+        # Filter low quality
+        mask = state.processed_data["score"] >= quality_threshold
+        state.processed_data = state.processed_data[mask].reset_index(drop=True)
+
+        if normalize_scores:
+            mean_score = state.processed_data["score"].mean()
+            std_score = state.processed_data["score"].std()
+            state.processed_data["normalized_score"] = (state.processed_data["score"] - mean_score) / std_score
+
+        if add_derived_features:
+            state.processed_data["score_percentile"] = state.processed_data["score"].rank(pct=True) * 100
+
+            # Add performance levels
+            score_col = state.processed_data["score"]
+            conditions = [
+                score_col <= score_col.quantile(0.25),
+                (score_col > score_col.quantile(0.25)) & (score_col <= score_col.quantile(0.75)),
+                score_col > score_col.quantile(0.75)
+            ]
+            choices = ["Low", "Medium", "High"]
+            state.processed_data["performance_level"] = np.select(conditions, choices, default="Medium")
+
+        return state
+    return processor_impl
+"""
+        )
+
+        yaml_content = {
+            "path": str(custom_module),
+            "processors": [
+                {
+                    "map_columns": {
+                        "column_mapping": {"llm_model": "model", "performance": "score"}
+                    }
+                },
+                {
+                    "comprehensive_processor": {
+                        "normalize_scores": True,
+                        "add_derived_features": True,
+                        "quality_threshold": 0.2,
+                    }
+                },
+                "extract_observed_feature",
+                {"extract_features": {"feature_names": ["score", "normalized_score"]}},
+                {"extract_predictors": {"predictor_names": ["model"]}},
+            ],
+        }
+
+        yaml_file = tmp_path / "config.yaml"
+        with open(yaml_file, "w") as f:
+            yaml.dump(yaml_content, f)
+
+        config = ProcessConfig.from_yaml(str(yaml_file))
+
+        # Create test data
+        np.random.seed(42)
+        n_samples = 200
+        data = pd.DataFrame(
+            {
+                "llm_model": np.random.choice(
+                    ["gpt-4", "claude", "palm"], size=n_samples
+                ),
+                "performance": np.random.beta(2, 1.5, size=n_samples),
+            }
+        )
+
+        # Add some low-quality scores to be filtered
+        low_quality_indices = np.random.choice(n_samples, size=20, replace=False)
+        data.loc[low_quality_indices, "performance"] = np.random.uniform(
+            0.0, 0.15, size=20
+        )
+
+        state = AnalysisState(data=data)
+
+        # Apply full pipeline
+        for processor in config.enabled_processors:
+            state = processor(state)
+
+        # Verify results
+        assert "model" in state.processed_data.columns
+        assert "score" in state.processed_data.columns
+        assert len(state.processed_data) < n_samples  # Some rows filtered
+        assert state.processed_data["score"].min() >= 0.2  # Quality threshold
+
+        # Check derived features
+        assert "normalized_score" in state.processed_data.columns
+        assert "score_percentile" in state.processed_data.columns
+        assert "performance_level" in state.processed_data.columns
+
+        # Check hibayes features
+        assert state.features is not None
+        assert "obs" in state.features
+        assert "score" in state.features
+        assert "normalized_score" in state.features
+        assert "model_index" in state.features
+
+
+class TestProcessConfigEdgeCases:
+    """Test edge cases and limits of ProcessConfig functionality."""
+
+    def test_process_config_empty_data_handling(self):
+        """Test processors with empty datasets."""
+        empty_data = pd.DataFrame(columns=["model", "task", "score"])
+        state = AnalysisState(data=empty_data)
+
+        config_dict = {
+            "processors": [
+                "extract_observed_feature",
+                {"extract_features": {"feature_names": ["score"]}},
+            ]
+        }
+
+        config = ProcessConfig.from_dict(config_dict)
+
+        with pytest.raises(ValueError):
+            for processor in config.enabled_processors:
+                state = processor(state)
+
+    def test_process_config_unicode_handling(self, tmp_path: Path):
+        """Test configuration with unicode characters."""
+        yaml_content = {
+            "processors": [
+                {
+                    "map_columns": {
+                        "column_mapping": {
+                            "modèle": "model",  # Unicode
+                            "tâche": "task",
+                            "نتيجة": "score",  # Arabic
+                        }
+                    }
+                }
+            ]
+        }
+
+        yaml_file = tmp_path / "unicode_config.yaml"
+        with open(yaml_file, "w", encoding="utf-8") as f:
+            yaml.dump(yaml_content, f, allow_unicode=True)
+
+        config = ProcessConfig.from_yaml(str(yaml_file))
+        assert len(config.enabled_processors) == 1
+
+        # Test with unicode data
+        data = pd.DataFrame(
+            {
+                "modèle": ["gpt-4"],
+                "tâche": ["math"],
+                "نتيجة": [0.85],
+            }
+        )
+
+        state = AnalysisState(data=data)
+        result = config.enabled_processors[0](state)
+
+        assert "model" in result.processed_data.columns
+        assert "task" in result.processed_data.columns
+        assert "score" in result.processed_data.columns
+
+    def test_process_config_memory_stress_test(self):
+        """Test processor with large datasets."""
+        n_rows = 10000
+        large_data = pd.DataFrame(
+            {
+                "model": np.random.choice(
+                    ["model_a", "model_b", "model_c"], size=n_rows
+                ),
+                "score": np.random.beta(2, 2, size=n_rows),
+            }
+        )
+
+        state = AnalysisState(data=large_data)
+
+        config_dict = {
+            "processors": [
+                "extract_observed_feature",
+                {"extract_features": {"feature_names": ["score"]}},
+                {"extract_predictors": {"predictor_names": ["model"]}},
+            ]
+        }
+
+        config = ProcessConfig.from_dict(config_dict)
+
+        for processor in config.enabled_processors:
+            state = processor(state)
+
+        assert len(state.features["obs"]) == n_rows
+        assert len(state.features["score"]) == n_rows

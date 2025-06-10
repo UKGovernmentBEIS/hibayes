@@ -154,8 +154,12 @@ class ModelsToRunConfig:
 
         enabled_models = []
 
-        if custom_model_config := config.get("custom_models", None):
-            enabled_models.extend(cls._load_custom_models(custom_model_config))
+        # so custom models are registered and can be treated as default
+        if custom_path := config.get("path", None):
+            if not isinstance(custom_path, list):
+                custom_path = [custom_path]
+            for path in custom_path:
+                _import_path(path)
 
         model_section = config.get("models", None)
         if isinstance(model_section, list):
@@ -193,46 +197,3 @@ class ModelsToRunConfig:
                 )
 
         return cls(enabled_models=enabled_models)
-
-    @classmethod
-    def _load_custom_models(cls, config: dict) -> List[Tuple[Model, ModelConfig]]:
-        """Load custom models from config.
-        each mapping has a key path (required) and an optional list of model names with corresponding kwargs.
-        """
-        entries = config if isinstance(config, list) else [config]
-        loaded = []
-
-        for entry in entries:
-            _import_path(entry["path"])
-            models = entry.get("models", None)
-            if models is None:
-                continue
-            models = models if isinstance(models, list) else [models]
-            for model in models:
-                if isinstance(model, str):
-                    name, kwargs = model, {}
-                elif isinstance(model, dict) and len(model) == 1:
-                    name, kwargs = next(iter(model.items()))
-                else:
-                    raise ValueError(
-                        "Each model must be either a string or a dict with kwargs. e.g. model1: {kwargs1: x, kwargs2: y}"
-                    )
-
-                try:
-                    model_builder = registry_get(RegistryInfo(type="model", name=name))
-                except KeyError:
-                    logger.warning(
-                        f"Model {name} not found in registry. Skipping model."
-                    )
-                    continue
-
-                model_config = ModelConfig.from_dict(kwargs)
-
-                loaded.append(
-                    (
-                        model_builder(**model_config.extra_kwargs),
-                        model_config,
-                    )
-                )
-
-        return loaded

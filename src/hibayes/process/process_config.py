@@ -47,13 +47,21 @@ class ProcessConfig:
 
         enabled_processors = []
 
-        if custom_process_config := config.get("custom_data_process", None):
-            enabled_processors.extend(cls._load_custom_process(custom_process_config))
+        # so custom processors are registered and can be treated as defailt
+        if custom_path := config.get("path", None):
+            if not isinstance(custom_path, list):
+                custom_path = [custom_path]
+            for path in custom_path:
+                _import_path(path)
 
-        process_section = config.get("data_process", None)
+        process_section = config.get("processors", None)
         if isinstance(process_section, list):
             for process in process_section:
                 if isinstance(process, dict):
+                    if len(process) != 1:
+                        raise ValueError(
+                            "Each process must be either a string or a dict with kwargs. e.g. process1: {kwargs1: x, kwargs2: y}"
+                        )
                     process_name, process_config = next(iter(process.items()))
                     enabled_processors.append(
                         registry_get(RegistryInfo(type="processor", name=process_name))(
@@ -75,36 +83,3 @@ class ProcessConfig:
                 enabled_processors.append(processor(**process_config))
 
         return cls(enabled_processors=enabled_processors)
-
-    @classmethod
-    def _load_custom_process(cls, config: dict) -> List[DataProcessor]:
-        """config from custom data processors.
-        each mapping has a key path (required) and an optional list of process names.
-        """
-        entries = config if isinstance(config, list) else [config]
-        loaded: List[DataProcessor] = []
-
-        for entry in entries:
-            _import_path(entry["path"])
-            processes = entry.get("processors", None)
-            if processes is None:
-                continue
-            processes = processes if isinstance(processes, list) else [processes]
-            for process in processes:
-                if isinstance(process, str):
-                    name, kwargs = process, {}
-                elif isinstance(process, dict) and len(process) == 1:
-                    name, kwargs = next(iter(process.items()))
-                else:
-                    raise ValueError(
-                        "Each process must be either a string or a dict with kwargs. e.g. process1: {kwargs1: x, kwargs2: y}"
-                    )
-                try:
-                    processor = registry_get(RegistryInfo(type="processor", name=name))
-                except KeyError:
-                    logger.warning(
-                        f"Processor {name} not found in registry. Skipping processor."
-                    )
-                    continue
-                loaded.append(processor(**kwargs))
-        return loaded
