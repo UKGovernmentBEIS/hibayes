@@ -76,14 +76,24 @@ class ModelConfig:
         if config is None:
             config = {}
 
+        config = config.copy()
+
         known_fields = set(cls.__dataclass_fields__.keys())
-        known_fields.remove("extra_kwargs")
 
-        structured_args = {k: v for k, v in config.items() if k in known_fields}
-        extra_kwargs = {k: v for k, v in config.items() if k not in known_fields}
+        # Extract known fields
+        structured_args = {}
+        for field_name in known_fields:
+            if field_name in config:
+                structured_args[field_name] = config.pop(field_name)
 
+        # Everything left goes to extra_kwargs
+        extra_kwargs = structured_args.get("extra_kwargs", {})
+        extra_kwargs.update(config)
+
+        # Process fit config
         fit_config = FitConfig(**structured_args.get("fit", {}))
 
+        # Process link function
         link_arg = structured_args.get("link_function", "logit")
 
         if isinstance(link_arg, str):
@@ -124,7 +134,7 @@ class ModelConfig:
 class ModelsToRunConfig:
     """Configuration which determines the models to run and loads in args"""
 
-    DEFAULT_MODELS: ClassVar[List[str]] = ["BetaBinomial"]
+    DEFAULT_MODELS: ClassVar[List[str]] = ["two_level_group_binomial"]
 
     enabled_models: List[Tuple[Model, ModelConfig]] = field(
         default_factory=list,
