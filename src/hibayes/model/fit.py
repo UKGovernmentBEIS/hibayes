@@ -68,9 +68,6 @@ def fit(
             display.update_stat("Errors encountered", str(e))
         raise
 
-    print("coords and dims")
-    print(model_analysis_state.coords)
-    print(model_analysis_state.dims)
     idata: az.InferenceData = az.from_numpyro(
         mcmc,
         coords=model_analysis_state.coords,
@@ -79,5 +76,13 @@ def fit(
     idata.extend(
         model_analysis_state.inference_data, join="right"
     )  # if we calculated prior through some other method use taht.
+
+    # good point to store the observed data as well (overwriting any dummy data from prior checks)
+    idata.extend(
+        az.from_dict(
+            observed_data={"obs": model_analysis_state.features.get("obs", None)},
+        ),
+        join="right",
+    )
     model_analysis_state.inference_data = idata
     model_analysis_state.is_fitted = True
