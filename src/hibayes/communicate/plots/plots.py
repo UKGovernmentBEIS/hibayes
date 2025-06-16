@@ -13,6 +13,7 @@ def forest_plot(
     vars: list[str] | None = None,
     best_model: bool = True,
     figsize: tuple[int, int] = (10, 5),
+    transform: bool = False,
     *args,
     **kwargs,
 ):
@@ -34,7 +35,6 @@ def forest_plot(
             models_to_run = state.models
 
         for model_analysis in models_to_run:
-            print(model_analysis.model_config)
             if model_analysis.is_fitted:
                 if vars is None:
                     vars = model_analysis.model_config.get_plot_params()
@@ -42,7 +42,7 @@ def forest_plot(
                     model_analysis.inference_data,
                     var_names=vars,
                     figsize=figsize,
-                    transform=model_analysis.link_function,
+                    transform=model_analysis.link_function if transform else None,
                     *args,
                     **kwargs,
                 )
@@ -50,7 +50,7 @@ def forest_plot(
                 # add plot to analysis state
                 state.add_plot(
                     plot=fig,
-                    plot_name=f"model_{model_analysis.model_name}_forest",
+                    plot_name=f"model_{model_analysis.model_name}_{'-'.join(vars) if vars else ''}_forest",
                 )
         return state, "pass"
 
@@ -62,6 +62,7 @@ def trace_plot(
     vars: list[str] | None = None,
     best_model: bool = True,
     figsize: tuple[int, int] = (10, 5),
+    transform: bool = False,
     *args,
     **kwargs,
 ):
@@ -90,7 +91,7 @@ def trace_plot(
                     model_analysis.inference_data,
                     var_names=vars,
                     figsize=figsize,
-                    transform=model_analysis.link_function,
+                    transform=model_analysis.link_function if transform else None,
                     *args,
                     **kwargs,
                 )

@@ -1,0 +1,129 @@
+schema: '2.0'
+stages:
+  process:
+    cmd: hibayes-process --config files/config_1_1.yaml --data data/data_1_1.csv --out
+      .output/q1_1/process/
+    deps:
+    - path: ../../src/hibayes/
+      hash: md5
+      md5: 7aceff762eaa3f4d05f982c6e7ac9f81.dir
+      size: 441804
+      nfiles: 104
+    - path: data/data_1_1.csv
+      hash: md5
+      md5: 96314f33eb7a8f9df4437c4f7582560c
+      size: 2980
+    params:
+      files/config_1_1.yaml:
+        data_process:
+          processors:
+          - extract_observed_feature:
+              feature_name: score
+          - extract_predictors:
+              predictor_names:
+              - grader
+              - LLM
+    outs:
+    - path: .output/q1_1/process/
+      hash: md5
+      md5: b96f4b0d8d92da8a6579173e8c585998.dir
+      size: 5396
+      nfiles: 4
+  model:
+    cmd: hibayes-model --config files/config_1_1.yaml --analysis-state .output/q1_1/process/
+      --out .output/q1_1/model/
+    deps:
+    - path: ../../src/hibayes/
+      hash: md5
+      md5: 7aceff762eaa3f4d05f982c6e7ac9f81.dir
+      size: 441804
+      nfiles: 104
+    - path: .output/q1_1/process/
+      hash: md5
+      md5: b96f4b0d8d92da8a6579173e8c585998.dir
+      size: 5396
+      nfiles: 4
+    params:
+      files/config_1_1.yaml:
+        check:
+          checkers:
+          - prior_predictive_plot
+          - divergences
+          - r_hat
+          - ess_bulk
+          - ess_tail
+          - posterior_predictive_plot
+          - waic
+        model:
+          path: files/custom_model.py
+          models:
+          - name: ordered_logistic_model
+            config:
+              tag: version_1
+              main_effects:
+              - grader
+              - LLM
+              interactions:
+              - - grader
+                - LLM
+              num_classes: 11
+              effect_coding_for_main_effects: true
+              fit:
+                samples: 2000
+                chains: 4
+          - name: ordered_logistic_model
+            config:
+              tag: version_2
+              main_effects:
+              - grader
+              num_classes: 11
+              effect_coding_for_main_effects: true
+              fit:
+                samples: 2000
+                chains: 4
+    outs:
+    - path: .output/q1_1/model/
+      hash: md5
+      md5: 8f4bad084dd95a8cd7a8875f864ae160.dir
+      size: 8837823
+      nfiles: 24
+  communicate:
+    cmd: hibayes-comm --config files/config_1_1.yaml --analysis_state .output/q1_1/model/
+      --out .output/q1_1/communicate/
+    deps:
+    - path: ../../src/hibayes/
+      hash: md5
+      md5: 7aceff762eaa3f4d05f982c6e7ac9f81.dir
+      size: 441804
+      nfiles: 104
+    - path: .output/q1_1/model/
+      hash: md5
+      md5: 8f4bad084dd95a8cd7a8875f864ae160.dir
+      size: 8837823
+      nfiles: 24
+    params:
+      files/config_1_1.yaml:
+        communicate:
+          path: files/custom_communicators.py
+          communicators:
+          - cutpoint_plot
+          - ordered_residuals_plot
+          - category_frequency_plot
+          - forest_plot:
+              vars:
+              - b_grader
+              combined: true
+          - forest_plot:
+              vars:
+              - b_LLM
+              combined: true
+          - forest_plot:
+              combined: true
+          - summary_table
+          - model_comparison_plot
+    outs:
+    - path: .output/q1_1/communicate/
+      hash: md5
+      md5: 13c1b2dad9c5538b51924ad07d20b770.dir
+      size: 9065625
+      nfiles: 29

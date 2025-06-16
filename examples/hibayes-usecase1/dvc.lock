@@ -5,9 +5,9 @@ stages:
     deps:
     - path: ../../src/hibayes/
       hash: md5
-      md5: fc161cba34cdfafd61aec8a65793adb6.dir
-      size: 494858
-      nfiles: 111
+      md5: 52a3705c74bb0f52093a60bc3938b5b5.dir
+      size: 442741
+      nfiles: 104
     - path: files/custom_extractor.py
       hash: md5
       md5: ca187ea6dc725bcf36af1497a61b15ad
@@ -37,9 +37,9 @@ stages:
     deps:
     - path: ../../src/hibayes/
       hash: md5
-      md5: fc161cba34cdfafd61aec8a65793adb6.dir
-      size: 494858
-      nfiles: 111
+      md5: 52a3705c74bb0f52093a60bc3938b5b5.dir
+      size: 442741
+      nfiles: 104
     - path: .output/load/data.parquet
       hash: md5
       md5: cd40c90aeec631bcc6b311eb71c04cff
@@ -74,9 +74,9 @@ stages:
     deps:
     - path: ../../src/hibayes/
       hash: md5
-      md5: fc161cba34cdfafd61aec8a65793adb6.dir
-      size: 494858
-      nfiles: 111
+      md5: 52a3705c74bb0f52093a60bc3938b5b5.dir
+      size: 442741
+      nfiles: 104
     - path: .output/process/
       hash: md5
       md5: 21e18c43839b835fa5ec8873b34a42f8.dir
@@ -108,8 +108,8 @@ stages:
     outs:
     - path: .output/model/
       hash: md5
-      md5: 629744056660e25075fd07fac877d37f.dir
-      size: 2668333
+      md5: ebc23072a89d0f505063da4b25a0b25f.dir
+      size: 2674439
       nfiles: 14
   communicate:
     cmd: hibayes-comm --config files/config.yaml --analysis_state .output/model/ --out
@@ -117,13 +117,13 @@ stages:
     deps:
     - path: ../../src/hibayes/
       hash: md5
-      md5: fc161cba34cdfafd61aec8a65793adb6.dir
-      size: 494858
-      nfiles: 111
+      md5: 52a3705c74bb0f52093a60bc3938b5b5.dir
+      size: 442741
+      nfiles: 104
     - path: .output/model/
       hash: md5
-      md5: 629744056660e25075fd07fac877d37f.dir
-      size: 2668333
+      md5: ebc23072a89d0f505063da4b25a0b25f.dir
+      size: 2674439
       nfiles: 14
     params:
       files/config.yaml:
@@ -136,6 +136,6 @@ stages:
     outs:
     - path: .output/communicate/
       hash: md5
-      md5: d236202e1761ddc280810341dcf3ac30.dir
-      size: 3598989
+      md5: 564ce914ca94e34ebc5dbbd231d69b0f.dir
+      size: 3522094
       nfiles: 16

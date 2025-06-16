@@ -363,9 +363,7 @@ def posterior_predictive_plot(
     def check(
         state: ModelAnalysisState, display: ModellingDisplay | None = None
     ) -> Tuple[ModelAnalysisState, CheckerResult]:
-        if pp_samples := state.inference_data.get("posterior_predictive"):
-            sims = pp_samples["obs"].values.ravel()
-        else:
+        if not state.inference_data.get("posterior_predictive"):
             rng_key = jax.random.PRNGKey(state.model_config.fit.seed + 1)
             predictive = Predictive(
                 state.model,
@@ -414,7 +412,7 @@ def posterior_predictive_plot(
             az.plot_ppc(
                 state.inference_data,
                 ax=ax,
-                var_names=["prop_pred"] if plot_proportion else None,
+                var_names=["prop_pred"] if plot_proportion else ["obs"],
                 **plot_kwargs,
             )
             if display:

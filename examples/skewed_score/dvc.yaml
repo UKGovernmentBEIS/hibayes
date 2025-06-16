@@ -1,0 +1,34 @@
+stages:
+  process:
+    cmd: hibayes-process --config files/config_1_1.yaml --data data/data_1_1.csv --out .output/q1_1/process/
+    deps:
+    - ../../src/hibayes/
+    - data/data_1_1.csv
+    outs:
+    - .output/q1_1/process/
+    params:
+      - files/config_1_1.yaml:
+        - data_process
+
+  model:
+    cmd: hibayes-model --config files/config_1_1.yaml --analysis-state .output/q1_1/process/ --out .output/q1_1/model/
+    deps:
+    - ../../src/hibayes/
+    - .output/q1_1/process/
+    outs:
+    - .output/q1_1/model/
+    params:
+      - files/config_1_1.yaml:
+        - model
+        - check
+
+  communicate:
+    cmd: hibayes-comm --config files/config_1_1.yaml --analysis_state .output/q1_1/model/ --out .output/q1_1/communicate/
+    deps:
+    - ../../src/hibayes/
+    - .output/q1_1/model/
+    outs:
+    - .output/q1_1/communicate/
+    params:
+      - files/config_1_1.yaml:
+        - communicate
