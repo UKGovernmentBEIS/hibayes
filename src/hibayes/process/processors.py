@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from itertools import combinations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import numpy as np
@@ -102,14 +103,17 @@ def extract_features(
 @process
 def extract_predictors(
     predictor_names: List[str] = ["model", "task"],
+    interactions: bool = False,
+    effect_coding_for_main_effects: bool = False,
 ) -> DataProcessor:
     """
     Extract predictors from the data used in the GLM. For each predictor codes and
-    indexes are extracted.
+    indexes are extracted, along with coordinates for both constrained and full effects.
 
     Args:
         predictor_names: The names of the features to extract from the data.
-        e.g. ["model", "task"] will extract the model and task columns from the data.
+        interactions: Whether to extract all possible pairwise interactions - currently just supports two-way interactions.
+        effect_coding_for_main_effects: Whether to create coords for effect coding
     """
 
     def process(
@@ -118,27 +122,77 @@ def extract_predictors(
     ) -> AnalysisState:
         if not all(col in state.processed_data.columns for col in predictor_names):
             raise ValueError(
-                f"Processed data must contain {predictor_names} columns but only contains {state.processed_data.columns.tolist()}. Either write a custom processor, or use map_columns processor to map the columns to these names. Or maybe you forgot to add a groupby processing step before this one?"
+                f"Processed data must contain {predictor_names} columns but only contains {state.processed_data.columns.tolist()}."
             )
+
         features: Features = {}
         coords: Coords = {}
         dims: Dims = {}
+
         for predictor_name in predictor_names:
             series = state.processed_data[predictor_name]
             feature_code, feature_index = pd.factorize(series, sort=True)
+
+            # Basic features
             features[predictor_name + "_index"] = jnp.asarray(
                 feature_code,
                 dtype=jnp.int32,
             )
             features["num_" + predictor_name] = len(feature_index)
 
+            # Coordinates for the predictor levels
             coords[predictor_name] = feature_index.tolist()
-            dims[predictor_name + "_effects"] = [predictor_name]
+
+            if effect_coding_for_main_effects and len(feature_index) > 1:
+                # Dimensions for constrained effects (n-1 parameters)
+                dims[predictor_name + "_effects"] = [f"{predictor_name}_constrained"]
+                coords[f"{predictor_name}_constrained"] = feature_index[
+                    :-1
+                ].tolist()  # All but last
+
+                # Dimensions for full effects (all n parameters)
+                dims[predictor_name + "_effects_full"] = [predictor_name]
+            else:
+                # Standard dummy coding - use all levels
+                dims[predictor_name + "_effects"] = [predictor_name]
 
             if display:
                 display.logger.info(
                     f"Extracted '{predictor_name}' -> '{predictor_name}_index'"
                 )
+                if effect_coding_for_main_effects and len(feature_index) > 1:
+                    display.logger.info(
+                        f"  - Constrained effects: {len(feature_index) - 1} params"
+                    )
+                    display.logger.info(
+                        f"  - Full effects: {len(feature_index)} params"
+                    )
+
+        # Handle interactions - generate all pairwise combinations
+        if (
+            interactions and len(predictor_names) >= 2
+        ):  # currently just two-way interactions
+            all_interactions = list(combinations(predictor_names, 2))
+
+            for pred1, pred2 in all_interactions:
+                interaction_name = f"{pred1}_{pred2}"
+                n1 = features[f"num_{pred1}"]
+                n2 = features[f"num_{pred2}"]
+
+                # Full interaction effects n1*n2 parameters
+                dims[f"{interaction_name}_effects_full"] = [pred1, pred2]
+
+                if display:
+                    display.logger.info(
+                        f"Added interaction dims for '{interaction_name}'"
+                    )
+                    if effect_coding_for_main_effects and n1 > 1 and n2 > 1:
+                        display.logger.info(
+                            f"  - Constrained: ({n1 - 1}, {n2 - 1}) params"
+                        )
+                        display.logger.info(f"  - Full: ({n1}, {n2}) params")
+
+        # Update state
         if state.features:
             state.features.update(features)
         else:
@@ -153,6 +207,7 @@ def extract_predictors(
             state.dims.update(dims)
         else:
             state.dims = dims
+
         return state
 
     return process

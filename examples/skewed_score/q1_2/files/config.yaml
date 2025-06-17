@@ -1,10 +1,10 @@
 data_process:
   processors:
     - extract_observed_feature: {feature_name: score} # 0-10 rating
-    - extract_predictors: {predictor_names: [grader, LLM]}
+    - extract_predictors: {predictor_names: [grader, LLM], effect_coding_for_main_effects: true}
 
 model:
-  path: files/custom_model.py
+  path: ../custom_model.py
   models:
     - name: ordered_logistic_model
       config:
@@ -19,7 +19,7 @@ model:
     - name: ordered_logistic_model
       config:
         tag: version_2
-        main_effects: ["grader"]
+        main_effects: ["grader", "LLM"]
         num_classes: 11
         effect_coding_for_main_effects: true
         fit:
@@ -36,13 +36,12 @@ check:
     - waic
 
 communicate:
-  path: files/custom_communicators.py
+  path: ../custom_communicators.py
   communicators:
     - cutpoint_plot
     - ordered_residuals_plot
     - category_frequency_plot
-    - forest_plot: {vars: ["b_grader"], combined: true}
-    - forest_plot: {vars: ["b_LLM"], combined: true}
+    - forest_plot: {vars: ["grader_effects", "LLM_effects"], combined: true}
     - forest_plot: {combined: true}
     - summary_table
     - model_comparison_plot

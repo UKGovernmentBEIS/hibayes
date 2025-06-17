@@ -91,15 +91,15 @@ def ordered_logistic_model(
                 if effect_coding_for_main_effects and n_levels > 1:
                     # Effect coding with sum-to-zero constraint
                     free_coefs = numpyro.sample(
-                        f"b_{effect}", prior_main_effect.expand([n_levels - 1])
+                        f"{effect}_effects", prior_main_effect.expand([n_levels - 1])
                     )
                     last_coef = -jnp.sum(free_coefs)
                     coefs = jnp.concatenate([free_coefs, jnp.array([last_coef])])
-                    numpyro.deterministic(f"b_{effect}_full", coefs)
+                    numpyro.deterministic(f"{effect}_effects_full", coefs)
                 else:
                     # Standard dummy coding
                     coefs = numpyro.sample(
-                        f"b_{effect}", prior_main_effect.expand([n_levels])
+                        f"{effect}_effects", prior_main_effect.expand([n_levels])
                     )
 
                 eta += coefs[idx]
@@ -156,7 +156,7 @@ def _create_interaction_effects(
 
     # Sample free parameters (excluding last row and column)
     raw = numpyro.sample(
-        f"b_interaction_{name1}_{name2}", prior.expand([(n1 - 1) * (n2 - 1)])
+        f"{name1}_{name2}_effects", prior.expand([(n1 - 1) * (n2 - 1)])
     ).reshape((n1 - 1, n2 - 1))
 
     # Initialize full matrix
@@ -173,5 +173,5 @@ def _create_interaction_effects(
     # Set last column to satisfy column sum-to-zero constraint
     b_full = b_full.at[:, n2 - 1].set(-jnp.sum(b_full[:, : n2 - 1], axis=1))
 
-    numpyro.deterministic(f"b_interaction_{name1}_{name2}_full", b_full)
+    numpyro.deterministic(f"{name1}_{name2}_effects_full", b_full)
     return b_full

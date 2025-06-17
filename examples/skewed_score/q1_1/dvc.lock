@@ -1,0 +1,110 @@
+schema: '2.0'
+stages:
+  process:
+    cmd: hibayes-process --config files/config.yaml --data data/data.csv --out .output/process/
+    deps:
+    - path: ../../../src/hibayes/
+      hash: md5
+      md5: 3fc1f9161d5920fce374cf3dff1cc0de.dir
+      size: 445717
+      nfiles: 104
+    - path: data/data.csv
+      hash: md5
+      md5: 96314f33eb7a8f9df4437c4f7582560c
+      size: 2980
+    params:
+      files/config.yaml:
+        data_process:
+          processors:
+          - extract_observed_feature:
+              feature_name: score
+          - extract_predictors:
+              predictor_names:
+              - grader
+              - LLM
+              effect_coding_for_main_effects: true
+    outs:
+    - path: .output/process/
+      hash: md5
+      md5: 0628df209d5f5ff2b6309ca11baa4cdb.dir
+      size: 5501
+      nfiles: 4
+  model:
+    cmd: hibayes-model --config files/config.yaml --analysis-state .output/process/
+      --out .output/model/
+    deps:
+    - path: ../../../src/hibayes/
+      hash: md5
+      md5: 3fc1f9161d5920fce374cf3dff1cc0de.dir
+      size: 445717
+      nfiles: 104
+    - path: .output/process/
+      hash: md5
+      md5: 0628df209d5f5ff2b6309ca11baa4cdb.dir
+      size: 5501
+      nfiles: 4
+    params:
+      files/config.yaml:
+        check:
+          checkers:
+          - prior_predictive_plot
+          - divergences
+          - r_hat
+          - ess_bulk
+          - ess_tail
+          - posterior_predictive_plot
+          - waic
+        model:
+          path: ../custom_model.py
+          models:
+          - name: ordered_logistic_model
+            config:
+              tag: version_1
+              main_effects:
+              - grader
+              num_classes: 11
+              effect_coding_for_main_effects: true
+              fit:
+                samples: 2000
+                chains: 4
+    outs:
+    - path: .output/model/
+      hash: md5
+      md5: faf4a825a2fd58ed47a6dd13190bf6d0.dir
+      size: 4396924
+      nfiles: 14
+  communicate:
+    cmd: hibayes-comm --config files/config.yaml --analysis_state .output/model/ --out
+      .output/communicate/
+    deps:
+    - path: ../../../src/hibayes/
+      hash: md5
+      md5: 3fc1f9161d5920fce374cf3dff1cc0de.dir
+      size: 445717
+      nfiles: 104
+    - path: .output/model/
+      hash: md5
+      md5: faf4a825a2fd58ed47a6dd13190bf6d0.dir
+      size: 4396924
+      nfiles: 14
+    params:
+      files/config.yaml:
+        communicate:
+          path: ../custom_communicators.py
+          communicators:
+          - cutpoint_plot
+          - ordered_residuals_plot
+          - category_frequency_plot
+          - forest_plot:
+              vars:
+              - grader_effects
+              combined: true
+          - forest_plot:
+              combined: true
+          - summary_table
+    outs:
+    - path: .output/communicate/
+      hash: md5
+      md5: 9373a10db5433c4bdff9e1ccb8ef4d82.dir
+      size: 4566665
+      nfiles: 17

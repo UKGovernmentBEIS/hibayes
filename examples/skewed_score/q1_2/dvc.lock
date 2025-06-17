@@ -1,20 +1,19 @@
 schema: '2.0'
 stages:
   process:
-    cmd: hibayes-process --config files/config_1_1.yaml --data data/data_1_1.csv --out
-      .output/q1_1/process/
+    cmd: hibayes-process --config files/config.yaml --data data/data.csv --out .output/process/
     deps:
-    - path: ../../src/hibayes/
+    - path: ../../../src/hibayes/
       hash: md5
-      md5: 7aceff762eaa3f4d05f982c6e7ac9f81.dir
-      size: 441804
+      md5: 3fc1f9161d5920fce374cf3dff1cc0de.dir
+      size: 445717
       nfiles: 104
-    - path: data/data_1_1.csv
+    - path: data/data.csv
       hash: md5
-      md5: 96314f33eb7a8f9df4437c4f7582560c
-      size: 2980
+      md5: 6451104fed66fe0c11eeb6bb7577a8cf
+      size: 5831
     params:
-      files/config_1_1.yaml:
+      files/config.yaml:
         data_process:
           processors:
           - extract_observed_feature:
@@ -23,28 +22,29 @@ stages:
               predictor_names:
               - grader
               - LLM
+              effect_coding_for_main_effects: true
     outs:
-    - path: .output/q1_1/process/
+    - path: .output/process/
       hash: md5
-      md5: b96f4b0d8d92da8a6579173e8c585998.dir
-      size: 5396
+      md5: a86a1a38de8661c0bf0abc87b57f0cc8.dir
+      size: 7844
       nfiles: 4
   model:
-    cmd: hibayes-model --config files/config_1_1.yaml --analysis-state .output/q1_1/process/
-      --out .output/q1_1/model/
+    cmd: hibayes-model --config files/config.yaml --analysis-state .output/process/
+      --out .output/model/
     deps:
-    - path: ../../src/hibayes/
+    - path: ../../../src/hibayes/
       hash: md5
-      md5: 7aceff762eaa3f4d05f982c6e7ac9f81.dir
-      size: 441804
+      md5: 3fc1f9161d5920fce374cf3dff1cc0de.dir
+      size: 445717
       nfiles: 104
-    - path: .output/q1_1/process/
+    - path: .output/process/
       hash: md5
-      md5: b96f4b0d8d92da8a6579173e8c585998.dir
-      size: 5396
+      md5: a86a1a38de8661c0bf0abc87b57f0cc8.dir
+      size: 7844
       nfiles: 4
     params:
-      files/config_1_1.yaml:
+      files/config.yaml:
         check:
           checkers:
           - prior_predictive_plot
@@ -55,7 +55,7 @@ stages:
           - posterior_predictive_plot
           - waic
         model:
-          path: files/custom_model.py
+          path: ../custom_model.py
           models:
           - name: ordered_logistic_model
             config:
@@ -76,54 +76,52 @@ stages:
               tag: version_2
               main_effects:
               - grader
+              - LLM
               num_classes: 11
               effect_coding_for_main_effects: true
               fit:
                 samples: 2000
                 chains: 4
     outs:
-    - path: .output/q1_1/model/
+    - path: .output/model/
       hash: md5
-      md5: 8f4bad084dd95a8cd7a8875f864ae160.dir
-      size: 8837823
+      md5: e31b0fe18fb563de2aa25ce8d6b161af.dir
+      size: 13266810
       nfiles: 24
   communicate:
-    cmd: hibayes-comm --config files/config_1_1.yaml --analysis_state .output/q1_1/model/
-      --out .output/q1_1/communicate/
+    cmd: hibayes-comm --config files/config.yaml --analysis_state .output/model/ --out
+      .output/communicate/
     deps:
-    - path: ../../src/hibayes/
+    - path: ../../../src/hibayes/
       hash: md5
-      md5: 7aceff762eaa3f4d05f982c6e7ac9f81.dir
-      size: 441804
+      md5: 7548884f28b3023e618638f7ea87b674.dir
+      size: 445581
       nfiles: 104
-    - path: .output/q1_1/model/
+    - path: .output/model/
       hash: md5
-      md5: 8f4bad084dd95a8cd7a8875f864ae160.dir
-      size: 8837823
+      md5: 25acddf58435b6f8a140280509297919.dir
+      size: 13261871
       nfiles: 24
     params:
-      files/config_1_1.yaml:
+      files/config.yaml:
         communicate:
-          path: files/custom_communicators.py
+          path: ../custom_communicators.py
           communicators:
           - cutpoint_plot
           - ordered_residuals_plot
           - category_frequency_plot
           - forest_plot:
               vars:
-              - b_grader
-              combined: true
-          - forest_plot:
-              vars:
-              - b_LLM
+              - grader_effects
+              - LLM_effects
               combined: true
           - forest_plot:
               combined: true
           - summary_table
           - model_comparison_plot
     outs:
-    - path: .output/q1_1/communicate/
+    - path: .output/communicate/
       hash: md5
-      md5: 13c1b2dad9c5538b51924ad07d20b770.dir
-      size: 9065625
-      nfiles: 29
+      md5: 7891f7571d1aa5a80c29b9b91686ca25.dir
+      size: 13507148
+      nfiles: 28
