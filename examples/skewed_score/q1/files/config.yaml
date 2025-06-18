@@ -1,7 +1,7 @@
 data_process:
   processors:
     - extract_observed_feature: {feature_name: score} # 0-10 rating
-    - extract_predictors: {predictor_names: [grader, LLM], effect_coding_for_main_effects: true}
+    - extract_predictors: {predictor_names: [grader], effect_coding_for_main_effects: true}
 
 model:
   path: ../custom_model.py
@@ -31,6 +31,6 @@ communicate:
     - cutpoint_plot
     - ordered_residuals_plot
     - category_frequency_plot
-    - forest_plot: {vars: ["grader_effects"], combined: true}
-    - forest_plot: {combined: true}
+    - forest_plot: {vars: ["grader_effects"], combined: true, vertical_line: 0}
+    - forest_plot: {combined: true, vertical_line: 0}
     - summary_table

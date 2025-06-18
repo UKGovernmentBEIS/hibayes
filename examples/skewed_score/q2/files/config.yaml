@@ -1,14 +1,14 @@
 data_process:
   processors:
     - extract_observed_feature: {feature_name: score} # 0-10 rating
-    - extract_predictors: {predictor_names: [grader, LLM], effect_coding_for_main_effects: true}
+    - extract_predictors: {predictor_names: [grader, LLM], effect_coding_for_main_effects: true, interactions: true}
 
 model:
   path: ../custom_model.py
   models:
     - name: ordered_logistic_model
       config:
-        tag: version_1
+        tag: with_interaction
         main_effects: ["grader", "LLM"]
         interactions: [["grader", "LLM"]]
         num_classes: 11  # for 0-10 scale
@@ -18,7 +18,7 @@ model:
           chains: 4
     - name: ordered_logistic_model
       config:
-        tag: version_2
+        tag: without_interaction
         main_effects: ["grader", "LLM"]
         num_classes: 11
         effect_coding_for_main_effects: true
@@ -41,7 +41,7 @@ communicate:
     - cutpoint_plot
     - ordered_residuals_plot
     - category_frequency_plot
-    - forest_plot: {vars: ["grader_effects", "LLM_effects"], combined: true}
-    - forest_plot: {combined: true}
+    - forest_plot: {vars: ["grader_effects", "LLM_effects", "grader_LLM_effects"], combined: true, vertical_line: 0}
+    - forest_plot: {combined: true, vertical_line: 0}
     - summary_table
     - model_comparison_plot

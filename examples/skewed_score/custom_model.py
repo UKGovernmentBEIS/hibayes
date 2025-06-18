@@ -338,7 +338,7 @@ def hierarchical_ordered_logistic_model(
 
                     # Sample interaction effects
                     grader_llm_interaction = numpyro.sample(
-                        "grader_LLM_interaction",
+                        "grader_LLM_effects",
                         prior_interaction.expand([n_graders, n_llms]),
                     )
 

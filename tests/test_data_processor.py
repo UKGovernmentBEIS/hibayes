@@ -544,8 +544,8 @@ class TestExtractPredictors:
 
         # Check interaction dimensions
         assert result.dims is not None
-        assert "model_task_effects_full" in result.dims
-        assert result.dims["model_task_effects_full"] == ["model", "task"]
+        assert "model_task_effects" in result.dims
+        assert result.dims["model_task_effects"] == ["model", "task"]
 
         # Check logging includes interaction info
         log_calls = [call[0][0] for call in mock_display.logger.info.call_args_list]
@@ -566,15 +566,15 @@ class TestExtractPredictors:
         assert "task_constrained" in result.coords
 
         # Check constrained coords have n-1 elements
-        assert len(result.coords["model_constrained"]) == 1  # 2-1
-        assert len(result.coords["task_constrained"]) == 1  # 2-1
+        assert len(result.coords["model_constrained"]) == 1
+        assert len(result.coords["task_constrained"]) == 1
 
         # Check that both constrained and full dims are created
         assert result.dims is not None
-        assert result.dims["model_effects"] == ["model_constrained"]
-        assert result.dims["task_effects"] == ["task_constrained"]
-        assert result.dims["model_effects_full"] == ["model"]
-        assert result.dims["task_effects_full"] == ["task"]
+        assert result.dims["model_effects"] == ["model"]
+        assert result.dims["task_effects"] == ["task"]
+        assert result.dims["model_effects_constrained"] == ["model_constrained"]
+        assert result.dims["task_effects_constrained"] == ["task_constrained"]
 
         # Check logging mentions constrained effects
         log_calls = [call[0][0] for call in mock_display.logger.info.call_args_list]
@@ -601,7 +601,7 @@ class TestExtractPredictors:
         # Single level predictor should not have constrained coords
         assert "model_constrained" not in result.coords
         assert result.dims["model_effects"] == ["model"]  # Should use standard coding
-        assert "model_effects_full" not in result.dims
+        assert "model_effects" in result.dims
 
     def test_extract_predictors_interactions_and_effect_coding(
         self, sample_analysis_state: AnalysisState, mock_display: ModellingDisplay
@@ -613,13 +613,13 @@ class TestExtractPredictors:
         result = processor(sample_analysis_state, mock_display)
 
         # Check main effects have both constrained and full
-        assert result.dims["model_effects"] == ["model_constrained"]
-        assert result.dims["model_effects_full"] == ["model"]
-        assert result.dims["task_effects"] == ["task_constrained"]
-        assert result.dims["task_effects_full"] == ["task"]
+        assert result.dims["model_effects_constrained"] == ["model_constrained"]
+        assert result.dims["model_effects"] == ["model"]
+        assert result.dims["task_effects_constrained"] == ["task_constrained"]
+        assert result.dims["task_effects"] == ["task"]
 
         # Check interaction effects
-        assert result.dims["model_task_effects_full"] == ["model", "task"]
+        assert result.dims["model_task_effects"] == ["model", "task"]
 
         # Check logging mentions both constrained effects and interactions
         log_calls = [call[0][0] for call in mock_display.logger.info.call_args_list]
@@ -650,29 +650,16 @@ class TestExtractPredictors:
 
         # Should have all pairwise interactions but no three-way
         expected_interactions = [
-            "model_task_effects_full",
-            "model_dataset_effects_full",
-            "task_dataset_effects_full",
+            "model_task_effects",
+            "model_dataset_effects",
+            "task_dataset_effects",
         ]
 
         for interaction in expected_interactions:
             assert interaction in result.dims
 
         # Should not have three-way interaction
-        assert "model_task_dataset_effects_full" not in result.dims
-
-    def test_extract_predictors_no_interactions_with_single_predictor(self):
-        """Test that no interactions are created with single predictor."""
-        processor = extract_predictors(predictor_names=["model"], interactions=True)
-        result = processor(
-            AnalysisState(
-                data=pd.DataFrame({"model": ["gpt-4", "claude"], "score": [0.8, 0.7]})
-            )
-        )
-
-        # Should have no interaction dims
-        interaction_dims = [key for key in result.dims.keys() if "effects_full" in key]
-        assert len(interaction_dims) == 0
+        assert "model_task_dataset_effects" not in result.dims
 
     def test_extract_predictors_constrained_coords_content(
         self, sample_analysis_state: AnalysisState

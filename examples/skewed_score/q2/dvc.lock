@@ -5,13 +5,13 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: 3fc1f9161d5920fce374cf3dff1cc0de.dir
-      size: 445717
-      nfiles: 104
+      md5: 10e11e518e7f18de789149e3eb33991d.dir
+      size: 450084
+      nfiles: 106
     - path: data/data.csv
       hash: md5
-      md5: 96314f33eb7a8f9df4437c4f7582560c
-      size: 2980
+      md5: 04faa228fd6fa8cfec4b4c0d0bfad182
+      size: 9817
     params:
       files/config.yaml:
         data_process:
@@ -23,11 +23,12 @@ stages:
               - grader
               - LLM
               effect_coding_for_main_effects: true
+              interactions: true
     outs:
     - path: .output/process/
       hash: md5
-      md5: 0628df209d5f5ff2b6309ca11baa4cdb.dir
-      size: 5501
+      md5: 66a84bca00291bbc8b0512450ea960e9.dir
+      size: 10155
       nfiles: 4
   model:
     cmd: hibayes-model --config files/config.yaml --analysis-state .output/process/
@@ -35,13 +36,13 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: 3fc1f9161d5920fce374cf3dff1cc0de.dir
-      size: 445717
-      nfiles: 104
+      md5: 10e11e518e7f18de789149e3eb33991d.dir
+      size: 450084
+      nfiles: 106
     - path: .output/process/
       hash: md5
-      md5: 0628df209d5f5ff2b6309ca11baa4cdb.dir
-      size: 5501
+      md5: 66a84bca00291bbc8b0512450ea960e9.dir
+      size: 10155
       nfiles: 4
     params:
       files/config.yaml:
@@ -59,9 +60,24 @@ stages:
           models:
           - name: ordered_logistic_model
             config:
-              tag: version_1
+              tag: with_interaction
               main_effects:
               - grader
+              - LLM
+              interactions:
+              - - grader
+                - LLM
+              num_classes: 11
+              effect_coding_for_main_effects: true
+              fit:
+                samples: 2000
+                chains: 4
+          - name: ordered_logistic_model
+            config:
+              tag: without_interaction
+              main_effects:
+              - grader
+              - LLM
               num_classes: 11
               effect_coding_for_main_effects: true
               fit:
@@ -70,23 +86,23 @@ stages:
     outs:
     - path: .output/model/
       hash: md5
-      md5: faf4a825a2fd58ed47a6dd13190bf6d0.dir
-      size: 4396924
-      nfiles: 14
+      md5: 5eefcd1107a210a11b40f20ac11dd1a9.dir
+      size: 17272078
+      nfiles: 24
   communicate:
     cmd: hibayes-comm --config files/config.yaml --analysis_state .output/model/ --out
       .output/communicate/
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: 3fc1f9161d5920fce374cf3dff1cc0de.dir
-      size: 445717
-      nfiles: 104
+      md5: 10e11e518e7f18de789149e3eb33991d.dir
+      size: 450084
+      nfiles: 106
     - path: .output/model/
       hash: md5
-      md5: faf4a825a2fd58ed47a6dd13190bf6d0.dir
-      size: 4396924
-      nfiles: 14
+      md5: 5eefcd1107a210a11b40f20ac11dd1a9.dir
+      size: 17272078
+      nfiles: 24
     params:
       files/config.yaml:
         communicate:
@@ -98,13 +114,18 @@ stages:
           - forest_plot:
               vars:
               - grader_effects
+              - LLM_effects
+              - grader_LLM_effects
               combined: true
+              vertical_line: 0
           - forest_plot:
               combined: true
+              vertical_line: 0
           - summary_table
+          - model_comparison_plot
     outs:
     - path: .output/communicate/
       hash: md5
-      md5: 9373a10db5433c4bdff9e1ccb8ef4d82.dir
-      size: 4566665
-      nfiles: 17
+      md5: fd61c6b7b6f95ee3578216a81273f447.dir
+      size: 17691523
+      nfiles: 28

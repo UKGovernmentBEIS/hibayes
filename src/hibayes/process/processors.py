@@ -144,14 +144,16 @@ def extract_predictors(
             coords[predictor_name] = feature_index.tolist()
 
             if effect_coding_for_main_effects and len(feature_index) > 1:
+                # Dimensions for full effects (all n parameters)
+                dims[predictor_name + "_effects"] = [predictor_name]
+
                 # Dimensions for constrained effects (n-1 parameters)
-                dims[predictor_name + "_effects"] = [f"{predictor_name}_constrained"]
+                dims[predictor_name + "_effects_constrained"] = [
+                    f"{predictor_name}_constrained"
+                ]
                 coords[f"{predictor_name}_constrained"] = feature_index[
                     :-1
                 ].tolist()  # All but last
-
-                # Dimensions for full effects (all n parameters)
-                dims[predictor_name + "_effects_full"] = [predictor_name]
             else:
                 # Standard dummy coding - use all levels
                 dims[predictor_name + "_effects"] = [predictor_name]
@@ -162,10 +164,10 @@ def extract_predictors(
                 )
                 if effect_coding_for_main_effects and len(feature_index) > 1:
                     display.logger.info(
-                        f"  - Constrained effects: {len(feature_index) - 1} params"
+                        f"  - Full effects: {len(feature_index)} params"
                     )
                     display.logger.info(
-                        f"  - Full effects: {len(feature_index)} params"
+                        f"  - Constrained effects: {len(feature_index) - 1} params"
                     )
 
         # Handle interactions - generate all pairwise combinations
@@ -180,17 +182,17 @@ def extract_predictors(
                 n2 = features[f"num_{pred2}"]
 
                 # Full interaction effects n1*n2 parameters
-                dims[f"{interaction_name}_effects_full"] = [pred1, pred2]
+                dims[f"{interaction_name}_effects"] = [pred1, pred2]
 
                 if display:
                     display.logger.info(
                         f"Added interaction dims for '{interaction_name}'"
                     )
                     if effect_coding_for_main_effects and n1 > 1 and n2 > 1:
+                        display.logger.info(f"  - Full: ({n1}, {n2}) params")
                         display.logger.info(
                             f"  - Constrained: ({n1 - 1}, {n2 - 1}) params"
                         )
-                        display.logger.info(f"  - Full: ({n1}, {n2}) params")
 
         # Update state
         if state.features:
