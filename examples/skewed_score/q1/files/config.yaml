@@ -1,0 +1,36 @@
+data_process:
+  processors:
+    - extract_observed_feature: {feature_name: score} # 0-10 rating
+    - extract_predictors: {predictor_names: [grader], effect_coding_for_main_effects: true}
+
+model:
+  path: ../custom_model.py
+  models:
+    - name: ordered_logistic_model
+      config:
+        tag: version_1
+        main_effects: ["grader"]
+        num_classes: 11  # for 0-10 scale
+        effect_coding_for_main_effects: true
+        fit:
+          samples: 2000
+          chains: 4
+check:
+  checkers:
+    - prior_predictive_plot
+    - divergences
+    - r_hat
+    - ess_bulk
+    - ess_tail
+    - posterior_predictive_plot
+    - waic
+
+communicate:
+  path: ../custom_communicators.py
+  communicators:
+    - cutpoint_plot
+    - ordered_residuals_plot
+    - category_frequency_plot
+    - forest_plot: {vars: ["grader_effects"], combined: true, vertical_line: 0}
+    - forest_plot: {combined: true, vertical_line: 0}
+    - summary_table

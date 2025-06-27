@@ -2,19 +2,21 @@ from __future__ import annotations
 
 import json
 import os
-import pickle
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
+import dill as pickle  # type: ignore # dill is used to pickle numpyro models as created dynamically
 import matplotlib.pyplot as plt
 import pandas as pd
 from arviz import InferenceData
 
+from .model import Model, ModelConfig
 from .utils import init_logger
 
 if TYPE_CHECKING:
-    from .model.models import BaseModel, Coords, Dims, Features, ModelConfig
+    from .process import Coords, Dims, Features
+
 
 logger = init_logger()
 
@@ -36,19 +38,15 @@ def _load_json(fname: Path) -> Dict[str, Any]:
 
 
 class ModelAnalysisState:
-    """State of the model analysis. This class is used to store model builder and1 extracted features for the model,"""
+    """State of the model analysis. This class is used to store the model, model configuration, inference data, and diagnostics."""
 
     def __init__(
         self,
-        model_name: str,  # name of the statistical model
-        model_builder: "BaseModel",  # statistical model builder
-        features: "Features",  # extracted features for the model
-        coords: Optional[
-            "Coords"
-        ] = None,  # map dimensinos to coordinates - used for nice plotting vars
-        dims: Optional[
-            "Dims"
-        ] = None,  # variable names to coordinates - used for nice plotting vars
+        model: Model,  # the model function to be fitted
+        model_config: "ModelConfig",  # model configuration
+        features: Optional["Features"] = None,
+        coords: Optional["Coords"] = None,
+        dims: Optional["Dims"] = None,
         inference_data: Optional[
             InferenceData
         ] = None,  # inference data re the statistical model fit
@@ -57,11 +55,12 @@ class ModelAnalysisState:
         ] = None,  # outcomes of the checkers e.g. rhat
         is_fitted: bool = False,
     ) -> None:
-        self._model_name: str = model_name
-        self._model_builder: "BaseModel" = model_builder
-        self._features: "Features" = features
+        self._model: Model = model
+        self._model_config: "ModelConfig" = model_config
+        self._features: "Features" = features or {}
         self._coords: "Coords" | None = coords
         self._dims: "Dims" | None = dims
+
         self._inference_data: InferenceData = (
             inference_data
             if inference_data
@@ -73,69 +72,26 @@ class ModelAnalysisState:
     @property
     def model_name(self) -> str:
         """Get the model name."""
-        return self._model_name
-
-    @model_name.setter
-    def model_name(self, model_name: str) -> None:
-        """Set the model name."""
-        self._model_name = model_name
+        return (
+            self.model.__name__ + self.model_config.tag
+            if self.model_config.tag
+            else self.model.__name__
+        )
 
     @property
     def model(self) -> Callable:
         """Get the callable model function."""
-        return self._model_builder.build_model()
+        return self._model
 
     @property
     def model_config(self) -> "ModelConfig":
         """Get the model configuration."""
-        return self._model_builder.config
+        return self._model_config
 
     @model_config.setter
     def model_config(self, model_config: "ModelConfig") -> None:
         """Set the model configuration."""
-        self._model_builder.config = model_config
-
-    @property
-    def model_builder(self) -> "BaseModel":
-        """Get the model builder."""
-        return self._model_builder
-
-    @property
-    def features(self) -> Dict[str, Any]:
-        """Get the features."""
-        return self._features
-
-    @property
-    def prior_features(self) -> Dict[str, Optional[Any]]:
-        """Get the prior features. Bascally all bar observables."""
-        features: Dict[str, Optional[Any]] = {
-            k: v for k, v in self._features.items() if "obs" not in k
-        }
-        features["obs"] = None  # add obs as None for numpyro
-
-        return features
-
-    def feature(self, feature_name: str) -> Any:
-        """Get a specific feature."""
-        return self._features.get(feature_name, None)
-
-    @property
-    def coords(self) -> "Coords" | None:
-        """Get the coordinates."""
-        return self._coords
-
-    def coord(self, coord_name: str) -> list | None:
-        """Get a specific coordinate."""
-        return self._coords[coord_name] if self._coords else None
-
-    @property
-    def dims(self) -> "Dims" | None:
-        """Get the dimensions."""
-        return self._dims
-
-    def dim(self, dim_name: str) -> list | None:
-        """Get a specific dimension."""
-        return self._dims[dim_name] if self._dims else None
+        self._model_config = model_config
 
     @property
     def inference_data(self) -> InferenceData | None:
@@ -178,9 +134,48 @@ class ModelAnalysisState:
         self._is_fitted = is_fitted
 
     @property
-    def link_function(self) -> Optional[Callable]:
+    def link_function(self) -> Callable:
         """Get the link function."""
         return self.model_config.link_function
+
+    @property
+    def features(self) -> Dict[str, Any]:
+        """Get the features."""
+        return self._features
+
+    @features.setter
+    def features(self, features: "Features") -> None:
+        """Set the features."""
+        self._features = features
+
+    @property
+    def coords(self) -> "Coords" | None:
+        """Get the coordinates."""
+        return self._coords
+
+    @coords.setter
+    def coords(self, coords: "Coords") -> None:
+        """Set the coordinates."""
+        self._coords = coords
+
+    @property
+    def dims(self) -> "Dims" | None:
+        """Get the dimensions."""
+        return self._dims
+
+    @dims.setter
+    def dims(self, dims: "Dims") -> None:
+        """Set the dimensions."""
+        self._dims = dims
+
+    @property
+    def prior_features(self) -> Dict[str, Optional[Any]]:
+        """Get the prior features. Basically all bar observables."""
+        features: Dict[str, Optional[Any]] = {
+            k: v for k, v in self._features.items() if "obs" not in k
+        }
+        features["obs"] = None
+        return features
 
     def save(self, path: Path) -> None:
         """
@@ -191,8 +186,7 @@ class ModelAnalysisState:
             <path>/
               ├── metadata.json
               ├── model_config.json
-              ├── model_builder.pkl
-              ├── features.json
+              ├── features.pkl
               ├── coords.json
               ├── diagnostics.json
               └── inference_data.nc notive netcdf - see arviz for more info
@@ -201,24 +195,24 @@ class ModelAnalysisState:
 
         _dump_json(
             {
-                "model_name": self.model_name,
                 "is_fitted": self.is_fitted,
             },
             path / "metadata.json",
         )
 
-        _dump_json(self.model_config, path / "model_config.json")
+        self.model_config.save(path / "model_config.json")
 
-        with (path / "model_builder.pkl").open("wb") as fp:
-            pickle.dump(self.model_builder, fp)
-
-        _dump_json(self.features, path / "features.json")
-
+        if self.features:
+            with (path / "features.pkl").open("wb") as fp:
+                pickle.dump(self.features, fp)
         if self.coords is not None:
             _dump_json(self.coords, path / "coords.json")
 
         if self.dims is not None:
             _dump_json(self.dims, path / "dims.json")
+
+        with (path / "model.pkl").open("wb") as fp:
+            pickle.dump(self.model, fp)
 
         if self.diagnostics:
             _dump_json(self.diagnostics, path / "diagnostics.json")
@@ -249,21 +243,25 @@ class ModelAnalysisState:
             raise FileNotFoundError(path)
 
         meta = _load_json(path / "metadata.json")
-        model_name: str = meta["model_name"]
         is_fitted: bool = meta.get("is_fitted", False)
 
-        # Builder (contains config + build_model implementation)
-        with (path / "model_builder.pkl").open("rb") as fp:
-            model_builder: "BaseModel" = pickle.load(fp)
+        with (path / "model.pkl").open("rb") as fp:
+            model: "Model" = pickle.load(fp)
 
-        # Features coords and diagnostics
-        features: "Features" = _load_json(path / "features.json")
+        features = None
+        if (path / "features.pkl").exists():
+            with (path / "features.pkl").open("rb") as fp:
+                features: "Features" = pickle.load(fp)
         coords = None
         if (path / "coords.json").exists():
-            coords: "Coords" = _load_json(path / "coords.json")
+            coords = _load_json(path / "coords.json")
+
         dims = None
         if (path / "dims.json").exists():
-            dims: "Dims" = _load_json(path / "dims.json")
+            dims = _load_json(path / "dims.json")
+
+        model_config = ModelConfig.from_dict(_load_json(path / "model_config.json"))
+
         diagnostics = None
         if (path / "diagnostics.json").exists():
             diagnostics = _load_json(path / "diagnostics.json")
@@ -273,8 +271,8 @@ class ModelAnalysisState:
             inference_data = InferenceData.from_netcdf(path / "inference_data.nc")
 
         return cls(
-            model_name=model_name,
-            model_builder=model_builder,
+            model=model,
+            model_config=model_config,
             features=features,
             coords=coords,
             dims=dims,
@@ -292,12 +290,28 @@ class AnalysisState:
     def __init__(
         self,
         data: pd.DataFrame,
+        processed_data: Optional[pd.DataFrame] = None,  # processed data
+        features: Optional[
+            "Features"
+        ] = None,  # extracted features and to be shared with the models
+        coords: Optional[
+            "Coords"
+        ] = None,  # map dimensinos to coordinates - used for nice plotting vars
+        dims: Optional[
+            "Dims"
+        ] = None,  # variable names to coordinates - used for nice plotting vars
         models: List[ModelAnalysisState] = [],
         communicate: Dict[str, plt.Figure | pd.DataFrame] = {},
     ) -> None:
         self._data: pd.DataFrame = (
             data  # extracted data from inspect eval logs see hibayes.load for details
         )
+        self._processed_data: pd.DataFrame | None = (
+            processed_data  # processed data, e.g. grouping, filtering etc
+        )
+        self._features: "Features" = features if features is not None else {}
+        self._coords: "Coords" | None = coords
+        self._dims: "Dims" | None = dims
         self._models: List[ModelAnalysisState] = models
         self._communicate: Dict[
             str, plt.Figure | pd.DataFrame
@@ -314,12 +328,77 @@ class AnalysisState:
         self._data = data
 
     @property
+    def processed_data(self) -> pd.DataFrame | None:
+        """Get the processed data."""
+        return self._processed_data
+
+    @processed_data.setter
+    def processed_data(self, processed_data: pd.DataFrame) -> None:
+        """Set the processed data."""
+        self._processed_data = processed_data
+
+    @property
+    def features(self) -> Dict[str, Any]:
+        """Get the features."""
+        return self._features
+
+    @features.setter
+    def features(self, features: "Features") -> None:
+        """Set the features."""
+        self._features = features
+
+    @property
+    def prior_features(self) -> Dict[str, Optional[Any]]:
+        """Get the prior features. Bascally all bar observables."""
+        features: Dict[str, Optional[Any]] = {
+            k: v for k, v in self._features.items() if "obs" not in k
+        }
+        features["obs"] = None  # add obs as None for numpyro
+
+        return features
+
+    def feature(self, feature_name: str) -> Any:
+        """Get a specific feature."""
+        return self._features.get(feature_name, None)
+
+    @property
+    def coords(self) -> "Coords" | None:
+        """Get the coordinates."""
+        return self._coords
+
+    @coords.setter
+    def coords(self, coords: "Coords") -> None:
+        """Set the coordinates."""
+        self._coords = coords
+
+    def coord(self, coord_name: str) -> list | None:
+        """Get a specific coordinate."""
+        return self._coords[coord_name] if self._coords else None
+
+    @property
+    def dims(self) -> "Dims" | None:
+        """Get the dimensions."""
+        return self._dims
+
+    @dims.setter
+    def dims(self, dims: "Dims") -> None:
+        """Set the dimensions."""
+        self._dims = dims
+
+    def dim(self, dim_name: str) -> list | None:
+        """Get a specific dimension."""
+        return self._dims[dim_name] if self._dims else None
+
+    @property
     def communicate(self) -> Dict[str, plt.Figure | pd.DataFrame] | None:
         """Get the communicate."""
         return self._communicate
 
     def communicate_item(self, item_name: str) -> plt.Figure | pd.DataFrame:
         """Get a specific communicate item."""
+        if self._communicate is None:
+            raise ValueError("Communicate is not set.")
+
         return self._communicate[item_name]
 
     def add_plot(self, plot: plt.Figure, plot_name: str) -> None:
@@ -346,6 +425,13 @@ class AnalysisState:
 
     def add_model(self, model: ModelAnalysisState) -> None:
         """Add a model to the analysis state."""
+        if not model.features:
+            model.features = self.features
+        if not model.coords:
+            model.coords = self.coords
+        if not model.dims:
+            model.dims = self.dims
+
         self._models.append(model)
 
     def get_model(self, model_name: str) -> ModelAnalysisState:
@@ -406,6 +492,15 @@ class AnalysisState:
             engine="pyarrow",  # auto might result in different engines in different setups)
             compression="snappy",
         )
+        if self.features:
+            with (path / "features.pkl").open("wb") as fp:
+                pickle.dump(self.features, fp)
+
+        if self.coords is not None:
+            _dump_json(self.coords, path / "coords.json")
+
+        if self.dims is not None:
+            _dump_json(self.dims, path / "dims.json")
         if self._communicate:
             comm_path = path / "communicate"
             _ensure_dir(comm_path)
@@ -437,6 +532,20 @@ class AnalysisState:
 
         data = pd.read_parquet(path / "data.parquet")
 
+        # Features
+        if (path / "features.pkl").exists():
+            with (path / "features.pkl").open("rb") as fp:
+                features: "Features" = pickle.load(fp)
+
+        if (path / "coords.json").exists():
+            coords: "Coords" = _load_json(path / "coords.json")
+        else:
+            coords = None
+        if (path / "dims.json").exists():
+            dims: "Dims" = _load_json(path / "dims.json")
+        else:
+            dims = None
+
         # figures and tables!
         communicate: Dict[str, plt.Figure | pd.DataFrame] = {}
         comm_path = path / "communicate"
@@ -464,4 +573,11 @@ class AnalysisState:
                 if model_dir.is_dir():
                     models.append(ModelAnalysisState.load(model_dir))
 
-        return cls(data=data, models=models, communicate=communicate or None)
+        return cls(
+            data=data,
+            models=models,
+            features=features,
+            coords=coords,
+            dims=dims,
+            communicate=communicate,
+        )

@@ -1,0 +1,168 @@
+schema: '2.0'
+stages:
+  process:
+    cmd: hibayes-process --config files/config.yaml --data data/data.csv --out .output/process/
+    deps:
+    - path: ../../../src/hibayes/
+      hash: md5
+      md5: 10e11e518e7f18de789149e3eb33991d.dir
+      size: 450084
+      nfiles: 106
+    - path: data/data.csv
+      hash: md5
+      md5: db4cf590eaa3a02944718713985144b6
+      size: 19380
+    params:
+      files/config.yaml:
+        data_process:
+          path: ../custom_processors.py
+          processors:
+          - add_categorical_column:
+              new_column: grader_type
+              source_column: grader
+              mapping_rules:
+                Human: human
+              default_value: model
+          - extract_observed_feature:
+              feature_name: score
+          - extract_predictors:
+              predictor_names:
+              - grader
+              - grader_type
+              - LLM
+              effect_coding_for_main_effects: true
+              interactions: true
+    outs:
+    - path: .output/process/
+      hash: md5
+      md5: 0932b53727f66f359fe271dbf4b06692.dir
+      size: 21420
+      nfiles: 4
+  model:
+    cmd: hibayes-model --config files/config.yaml --analysis-state .output/process/
+      --out .output/model/
+    deps:
+    - path: ../../../src/hibayes/
+      hash: md5
+      md5: 10e11e518e7f18de789149e3eb33991d.dir
+      size: 450084
+      nfiles: 106
+    - path: .output/process/
+      hash: md5
+      md5: 0932b53727f66f359fe271dbf4b06692.dir
+      size: 21420
+      nfiles: 4
+    params:
+      files/config.yaml:
+        check:
+          checkers:
+          - prior_predictive_plot
+          - divergences
+          - r_hat
+          - ess_bulk
+          - ess_tail
+          - posterior_predictive_plot
+          - waic
+        model:
+          path: ../custom_model.py
+          models:
+          - name: ordered_logistic_model
+            config:
+              tag: version_1
+              main_effects:
+              - grader
+              - grader_type
+              - LLM
+              interactions:
+              - - grader
+                - LLM
+              num_classes: 11
+              effect_coding_for_main_effects: true
+              fit:
+                samples: 2000
+                chains: 4
+          - name: ordered_logistic_model
+            config:
+              tag: version_2
+              main_effects:
+              - grader
+              - grader_type
+              - LLM
+              num_classes: 11
+              effect_coding_for_main_effects: true
+              fit:
+                samples: 2000
+                chains: 4
+          - name: hierarchical_ordered_logistic_model
+            config:
+              tag: version_1
+              main_effects:
+              - LLM
+              interactions:
+              - - grader
+                - LLM
+              num_classes: 11
+              effect_coding_for_main_effects: true
+              fit:
+                samples: 2000
+                chains: 4
+    outs:
+    - path: .output/model/
+      hash: md5
+      md5: cc4ece729fbcd54936575c8a93165198.dir
+      size: 44419499
+      nfiles: 34
+  communicate:
+    cmd: hibayes-comm --config files/config.yaml --analysis_state .output/model/ --out
+      .output/communicate/
+    deps:
+    - path: ../../../src/hibayes/
+      hash: md5
+      md5: 10e11e518e7f18de789149e3eb33991d.dir
+      size: 450084
+      nfiles: 106
+    - path: .output/model/
+      hash: md5
+      md5: cc4ece729fbcd54936575c8a93165198.dir
+      size: 44419499
+      nfiles: 34
+    params:
+      files/config.yaml:
+        communicate:
+          path: ../custom_communicators.py
+          communicators:
+          - cutpoint_plot
+          - ordered_residuals_plot
+          - category_frequency_plot
+          - forest_plot:
+              vars:
+              - grader_effects
+              - LLM_effects
+              - grader_type_effects
+              combined: true
+              vertical_line: 0
+          - forest_plot:
+              vars:
+              - LLM_effects
+              - grader_type_0_mean
+              - grader_type_1_mean
+              - grader_raw_effects
+              combined: true
+              figsize:
+              - 10
+              - 10
+              vertical_line: 0
+          - forest_plot:
+              combined: true
+              figsize:
+              - 10
+              - 10
+              vertical_line: 0
+          - summary_table
+          - model_comparison_plot
+    outs:
+    - path: .output/communicate/
+      hash: md5
+      md5: ff057720fc69de36f0529d3955148db2.dir
+      size: 44977372
+      nfiles: 39

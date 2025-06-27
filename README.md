@@ -159,7 +159,38 @@ uv run hibayes-comm --config <path-to-config.yaml> \
 uv run hibayes-full --config <path-to-config.yaml> \
     --out <path-to-model-fit-results>
 ```
+## Naming Conventions
 
+HiBayES follows consistent naming conventions to ensure compatibility across models and clear communication between components. These conventions apply to:
+- Configuration file keys
+- Model parameter names
+- Data column names
+- Internal variable naming
+
+### Core Patterns
+
+#### Effects and Parameters
+```python
+# Fixed and random effects
+f"{effect_name}_effects"
+# Examples: age_effects, model_effects, group_effects
+
+# Interaction terms
+f"{effect_1}_{effect_2}_interaction"
+# Examples: age_model_interaction, group_task_interaction
+
+```
+
+#### Data Structure References
+```python
+# Index mappings
+f"{feature}_index"
+# Examples: model_index, task_index, group_index
+
+# Count variables
+f"num_{feature}"
+# Examples: num_models, num_tasks, num_groups
+```
 ## Configuration
 
 The package uses YAML configuration files to define the analysis pipeline. Here we detail some of the features you can use in th configuration file.

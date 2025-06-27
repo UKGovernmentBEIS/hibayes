@@ -46,7 +46,7 @@ def summary_table(
                 continue
 
             if vars is None:
-                vars = model_analysis.model_builder.config.main_effect_params
+                vars = model_analysis.model_config.get_plot_params()
 
             summary_df = az.summary(
                 model_analysis.inference_data,

@@ -24,24 +24,15 @@ class Communicator(Protocol):
         display: ModellingDisplay | None = None,
     ) -> Tuple[AnalysisState, Literal["pass", "fail", "error", "NA"]]:
         """
-        Perform the communication such as creating plots and tables.
+        Perform the communication.
+
+        Args:
+            state: The analysis state of the model.
+            display: The display object used to get user interaction IF required.
+        Returns:
+            The updated analysis state (with information about the results which were used to yield the checkererresult) and the result of the analysis.
         """
-
-        def __call__(
-            self,
-            state: AnalysisState,
-            display: ModellingDisplay | None = None,
-        ) -> Tuple[AnalysisState, Literal["pass", "fail", "error", "NA"]]:
-            """
-            Perform the communication.
-
-            Args:
-                state: The analysis state of the model.
-                display: The display object used to get user interaction IF required.
-            Returns:
-                The updated analysis state (with information about the results which were used to yield the checkererresult) and the result of the analysis.
-            """
-            ...
+        ...
 
 
 def communicate(
@@ -60,7 +51,7 @@ def communicate(
     def communicator_wrapper(*args, **kwargs) -> Communicator:
         communicator = communicate_builder(*args, **kwargs)
 
-        @wraps(communicator)
+        @wraps(communicate_builder)
         def communicator_interface(
             state: AnalysisState,
             display: ModellingDisplay | None = None,
@@ -80,7 +71,7 @@ def communicate(
 
         return communicator_interface
 
-    registry_info = RegistryInfo(type="communicate", name=communicate_builder.__name__)
+    registry_info = RegistryInfo(type="communicator", name=communicate_builder.__name__)
     registry_add(communicator_wrapper, registry_info)
 
     return communicator_wrapper

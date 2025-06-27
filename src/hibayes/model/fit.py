@@ -1,9 +1,14 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import arviz as az
 import jax
 from numpyro.infer import HMC, MCMC, NUTS
 
-from ..analysis_state import ModelAnalysisState
-from ..ui import ModellingDisplay
+if TYPE_CHECKING:
+    from ..analysis_state import ModelAnalysisState
+    from ..ui import ModellingDisplay
 
 
 def fit(
@@ -48,7 +53,7 @@ def fit(
     try:
         mcmc.run(
             rng_key,
-            **model_analysis_state.features,
+            model_analysis_state.features,
             extra_fields=("potential_energy", "energy"),
         )
         if display:
@@ -71,5 +76,13 @@ def fit(
     idata.extend(
         model_analysis_state.inference_data, join="right"
     )  # if we calculated prior through some other method use taht.
+
+    # good point to store the observed data as well (overwriting any dummy data from prior checks)
+    idata.extend(
+        az.from_dict(
+            observed_data={"obs": model_analysis_state.features.get("obs", None)},
+        ),
+        join="right",
+    )
     model_analysis_state.inference_data = idata
     model_analysis_state.is_fitted = True

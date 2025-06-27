@@ -29,7 +29,7 @@ def main():
     parser.add_argument(
         "--config",
         required=True,
-        help="Path to the configuration file (YAML format). See examples/*/*.yaml for examples",
+        help="Path to the configuration file (YAML format). See examples",
     )
     parser.add_argument(
         "--analysis_state",

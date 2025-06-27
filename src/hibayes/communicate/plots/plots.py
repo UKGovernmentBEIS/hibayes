@@ -6,13 +6,16 @@ import matplotlib.pyplot as plt
 from ...analysis_state import AnalysisState
 from ...ui import ModellingDisplay
 from .._communicate import CommunicateResult, communicate
+from ..utils import drop_not_present_vars
 
 
 @communicate
 def forest_plot(
     vars: list[str] | None = None,
+    vertical_line: float | None = None,
     best_model: bool = True,
     figsize: tuple[int, int] = (10, 5),
+    transform: bool = False,
     *args,
     **kwargs,
 ):
@@ -35,21 +38,38 @@ def forest_plot(
 
         for model_analysis in models_to_run:
             if model_analysis.is_fitted:
+                vars, dropped = (
+                    drop_not_present_vars(vars, model_analysis.inference_data)
+                    if vars
+                    else (None, None)
+                )
+                if dropped and display:
+                    display.logger.warning(
+                        f"Variables {dropped} were not found in the model {model_analysis.model_name} inference data."
+                    )
                 if vars is None:
-                    vars = model_analysis.model_builder.config.main_effect_params
-                az.plot_forest(
+                    vars = model_analysis.model_config.get_plot_params()
+
+                ax = az.plot_forest(
                     model_analysis.inference_data,
                     var_names=vars,
                     figsize=figsize,
-                    transform=model_analysis.link_function,
+                    transform=model_analysis.link_function if transform else None,
                     *args,
                     **kwargs,
                 )
+
+                if vertical_line is not None:
+                    ax[0].axvline(
+                        x=vertical_line,
+                        color="red",
+                        linestyle="--",
+                    )
                 fig = plt.gcf()
                 # add plot to analysis state
                 state.add_plot(
                     plot=fig,
-                    plot_name=f"model_{model_analysis.model_name}_forest",
+                    plot_name=f"model_{model_analysis.model_name}_{'-'.join(vars) if vars else ''}_forest",
                 )
         return state, "pass"
 
@@ -61,6 +81,7 @@ def trace_plot(
     vars: list[str] | None = None,
     best_model: bool = True,
     figsize: tuple[int, int] = (10, 5),
+    transform: bool = False,
     *args,
     **kwargs,
 ):
@@ -72,6 +93,7 @@ def trace_plot(
         Communicate the trace plots for each model's inference data.
         """
         nonlocal vars
+
         if best_model:
             best_model_analysis = state.get_best_model()
             if best_model_analysis is None:
@@ -81,6 +103,16 @@ def trace_plot(
             models_to_run = state.models
 
         for model_analysis in models_to_run:
+            vars, dropped = (
+                drop_not_present_vars(vars, model_analysis.inference_data)
+                if vars
+                else (None, None)
+            )
+
+            if dropped and display:
+                display.logger.warning(
+                    f"Variables {dropped} were not found in the model {model_analysis.model_name} inference data."
+                )
             if vars is None:
                 # best to get all the parameter from the model for the trace plot
                 vars = list(model_analysis.inference_data.posterior.data_vars)
@@ -89,7 +121,7 @@ def trace_plot(
                     model_analysis.inference_data,
                     var_names=vars,
                     figsize=figsize,
-                    transform=model_analysis.link_function,
+                    transform=model_analysis.link_function if transform else None,
                     *args,
                     **kwargs,
                 )
@@ -130,8 +162,18 @@ def pair_plot(
 
         for model_analysis in models_to_run:
             if model_analysis.is_fitted:
+                vars, dropped = (
+                    drop_not_present_vars(vars, model_analysis.inference_data)
+                    if vars
+                    else (None, None)
+                )
+
+                if dropped and display:
+                    display.logger.warning(
+                        f"Variables {dropped} were not found in the model {model_analysis.model_name} inference data."
+                    )
                 if vars is None:
-                    vars = model_analysis.model_builder.config.main_effect_params
+                    vars = model_analysis.model_config.get_plot_params()
                 az.plot_pair(
                     model_analysis.inference_data,
                     var_names=vars,

@@ -1,0 +1,531 @@
+score,grader,LLM
+7,Human,LLM A
+6,Human,LLM A
+5,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+8,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+8,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+4,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+5,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+8,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+8,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+8,Human,LLM A
+5,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+8,Human,LLM A
+6,Human,LLM A
+8,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+5,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+5,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+8,Human,LLM A
+7,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+4,Human,LLM A
+7,Human,LLM A
+5,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+5,Human,LLM A
+6,Human,LLM A
+7,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+6,Human,LLM A
+5,Human,LLM B
+5,Human,LLM B
+6,Human,LLM B
+4,Human,LLM B
+4,Human,LLM B
+5,Human,LLM B
+6,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+4,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+6,Human,LLM B
+6,Human,LLM B
+4,Human,LLM B
+4,Human,LLM B
+6,Human,LLM B
+3,Human,LLM B
+6,Human,LLM B
+4,Human,LLM B
+4,Human,LLM B
+6,Human,LLM B
+5,Human,LLM B
+3,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+4,Human,LLM B
+4,Human,LLM B
+6,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+4,Human,LLM B
+4,Human,LLM B
+4,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+4,Human,LLM B
+4,Human,LLM B
+6,Human,LLM B
+6,Human,LLM B
+6,Human,LLM B
+3,Human,LLM B
+3,Human,LLM B
+5,Human,LLM B
+6,Human,LLM B
+6,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+6,Human,LLM B
+5,Human,LLM B
+4,Human,LLM B
+3,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+4,Human,LLM B
+5,Human,LLM B
+4,Human,LLM B
+5,Human,LLM B
+3,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+3,Human,LLM B
+5,Human,LLM B
+4,Human,LLM B
+4,Human,LLM B
+3,Human,LLM B
+4,Human,LLM B
+4,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+6,Human,LLM B
+2,Human,LLM B
+4,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+3,Human,LLM B
+5,Human,LLM B
+4,Human,LLM B
+6,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+5,Human,LLM B
+5,Autograder A,LLM A
+4,Autograder A,LLM A
+3,Autograder A,LLM A
+5,Autograder A,LLM A
+6,Autograder A,LLM A
+6,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+4,Autograder A,LLM A
+4,Autograder A,LLM A
+5,Autograder A,LLM A
+6,Autograder A,LLM A
+4,Autograder A,LLM A
+4,Autograder A,LLM A
+3,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+3,Autograder A,LLM A
+4,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+4,Autograder A,LLM A
+5,Autograder A,LLM A
+6,Autograder A,LLM A
+4,Autograder A,LLM A
+6,Autograder A,LLM A
+4,Autograder A,LLM A
+5,Autograder A,LLM A
+6,Autograder A,LLM A
+6,Autograder A,LLM A
+5,Autograder A,LLM A
+3,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+3,Autograder A,LLM A
+4,Autograder A,LLM A
+5,Autograder A,LLM A
+6,Autograder A,LLM A
+4,Autograder A,LLM A
+5,Autograder A,LLM A
+6,Autograder A,LLM A
+5,Autograder A,LLM A
+6,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+4,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+6,Autograder A,LLM A
+5,Autograder A,LLM A
+6,Autograder A,LLM A
+4,Autograder A,LLM A
+5,Autograder A,LLM A
+6,Autograder A,LLM A
+6,Autograder A,LLM A
+6,Autograder A,LLM A
+6,Autograder A,LLM A
+5,Autograder A,LLM A
+4,Autograder A,LLM A
+6,Autograder A,LLM A
+6,Autograder A,LLM A
+7,Autograder A,LLM A
+5,Autograder A,LLM A
+4,Autograder A,LLM A
+4,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+3,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+6,Autograder A,LLM A
+4,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+5,Autograder A,LLM A
+4,Autograder A,LLM A
+4,Autograder A,LLM A
+5,Autograder A,LLM A
+3,Autograder A,LLM B
+3,Autograder A,LLM B
+1,Autograder A,LLM B
+2,Autograder A,LLM B
+2,Autograder A,LLM B
+3,Autograder A,LLM B
+3,Autograder A,LLM B
+3,Autograder A,LLM B
+1,Autograder A,LLM B
+0,Autograder A,LLM B
+1,Autograder A,LLM B
+2,Autograder A,LLM B
+3,Autograder A,LLM B
+4,Autograder A,LLM B
+2,Autograder A,LLM B
+1,Autograder A,LLM B
+1,Autograder A,LLM B
+1,Autograder A,LLM B
+1,Autograder A,LLM B
+0,Autograder A,LLM B
+2,Autograder A,LLM B
+2,Autograder A,LLM B
+0,Autograder A,LLM B
+3,Autograder A,LLM B
+1,Autograder A,LLM B
+2,Autograder A,LLM B
+3,Autograder A,LLM B
+3,Autograder A,LLM B
+2,Autograder A,LLM B
+1,Autograder A,LLM B
+4,Autograder A,LLM B
+2,Autograder A,LLM B
+2,Autograder A,LLM B
+2,Autograder A,LLM B
+3,Autograder A,LLM B
+1,Autograder A,LLM B
+2,Autograder A,LLM B
+0,Autograder A,LLM B
+1,Autograder A,LLM B
+3,Autograder A,LLM B
+3,Autograder A,LLM B
+3,Autograder A,LLM B
+0,Autograder A,LLM B
+1,Autograder A,LLM B
+1,Autograder A,LLM B
+2,Autograder A,LLM B
+3,Autograder A,LLM B
+2,Autograder A,LLM B
+2,Autograder A,LLM B
+2,Autograder A,LLM B
+1,Autograder A,LLM B
+3,Autograder A,LLM B
+3,Autograder A,LLM B
+3,Autograder A,LLM B
+1,Autograder A,LLM B
+3,Autograder A,LLM B
+3,Autograder A,LLM B
+3,Autograder A,LLM B
+1,Autograder A,LLM B
+0,Autograder A,LLM B
+2,Autograder A,LLM B
+1,Autograder A,LLM B
+2,Autograder A,LLM B
+2,Autograder A,LLM B
+1,Autograder A,LLM B
+2,Autograder A,LLM B
+2,Autograder A,LLM B
+3,Autograder A,LLM B
+3,Autograder A,LLM B
+2,Autograder A,LLM B
+2,Autograder A,LLM B
+0,Autograder A,LLM B
+3,Autograder A,LLM B
+3,Autograder A,LLM B
+3,Autograder A,LLM B
+3,Autograder A,LLM B
+2,Autograder A,LLM B
+3,Autograder A,LLM B
+2,Autograder A,LLM B
+2,Autograder A,LLM B
+3,Autograder A,LLM B
+2,Autograder A,LLM B
+3,Autograder A,LLM B
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+7,Autograder B,LLM A
+5,Autograder B,LLM A
+4,Autograder B,LLM A
+5,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+5,Autograder B,LLM A
+5,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+5,Autograder B,LLM A
+4,Autograder B,LLM A
+5,Autograder B,LLM A
+4,Autograder B,LLM A
+5,Autograder B,LLM A
+4,Autograder B,LLM A
+6,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+5,Autograder B,LLM A
+5,Autograder B,LLM A
+3,Autograder B,LLM A
+4,Autograder B,LLM A
+5,Autograder B,LLM A
+4,Autograder B,LLM A
+5,Autograder B,LLM A
+5,Autograder B,LLM A
+5,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+5,Autograder B,LLM A
+3,Autograder B,LLM A
+4,Autograder B,LLM A
+5,Autograder B,LLM A
+4,Autograder B,LLM A
+3,Autograder B,LLM A
+4,Autograder B,LLM A
+5,Autograder B,LLM A
+4,Autograder B,LLM A
+3,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+3,Autograder B,LLM A
+4,Autograder B,LLM A
+5,Autograder B,LLM A
+4,Autograder B,LLM A
+3,Autograder B,LLM A
+5,Autograder B,LLM A
+6,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+3,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+3,Autograder B,LLM A
+3,Autograder B,LLM A
+4,Autograder B,LLM A
+3,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+5,Autograder B,LLM A
+3,Autograder B,LLM A
+5,Autograder B,LLM A
+6,Autograder B,LLM A
+3,Autograder B,LLM A
+5,Autograder B,LLM A
+3,Autograder B,LLM A
+4,Autograder B,LLM A
+3,Autograder B,LLM A
+4,Autograder B,LLM A
+4,Autograder B,LLM A
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+1,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+1,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+1,Autograder B,LLM B
+4,Autograder B,LLM B
+4,Autograder B,LLM B
+1,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+4,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+4,Autograder B,LLM B
+4,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+5,Autograder B,LLM B
+4,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+4,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+5,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+4,Autograder B,LLM B
+4,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+2,Autograder B,LLM B
+4,Autograder B,LLM B
+2,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+3,Autograder B,LLM B
+4,Autograder B,LLM B
+4,Autograder B,LLM B

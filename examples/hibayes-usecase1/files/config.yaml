@@ -10,19 +10,24 @@ data_loader:
       path: files/custom_extractor.py
       classes:
         - Domains
+data_process:
+  processors:
+    - map_columns: {column_mapping: {domain: group}}
+    - groupby: {groupby_columns: [group]}
+    - extract_features: {feature_names: [n_total]}
+    - extract_predictors: {predictor_names: [group]}
+    - extract_observed_feature: {feature_name: n_correct}
+
 model:
   models:
-    - name: TwoLevelGroupBinomial
+    - name: two_level_group_binomial
       config:
         tag: version_1
-        centred: false
-        column_map:
-          domain: group
 
 platform:
-checkers:
-  checks:
-    - prior_predictive_plot
+check:
+  checkers:
+    - prior_predictive_plot: {plot_proportion: true}
     - r_hat
     - divergences
     - ess_bulk
@@ -31,7 +36,7 @@ checkers:
     - bfmi
     - posterior_predictive_plot: {plot_proportion: true, plot_kwargs: {num_pp_samples: 50}}
     - waic
-communicators:
+communicate:
   communicate:
     - forest_plot: {combined: true}
     - trace_plot

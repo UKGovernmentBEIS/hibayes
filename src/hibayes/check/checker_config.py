@@ -53,10 +53,14 @@ class CheckerConfig:
             config = {}
         enabled_checks = []
 
-        if custom_checks_config := config.get("custom_checks", None):
-            enabled_checks.extend(cls._load_custom_checks(custom_checks_config))
+        # so custom checks are registered and can be treated as default
+        if custom_path := config.get("path", None):
+            if not isinstance(custom_path, list):
+                custom_path = [custom_path]
+            for path in custom_path:
+                _import_path(path)
 
-        checks_config = config.get("checks", None)
+        checks_config = config.get("checkers", None)
         if isinstance(checks_config, list):
             # ["check1", "check2"] format
             for check in checks_config:
@@ -82,44 +86,6 @@ class CheckerConfig:
                 )
 
         return cls(enabled_checks=enabled_checks)
-
-    @staticmethod
-    def _load_custom_checks(config: list) -> list[Checker]:
-        """
-        config from custom_checks.
-        Each mapping has keys path (required) and checks (optional/list).
-        """
-        entries = config if isinstance(config, list) else [config]
-        loaded: list[Checker] = []
-
-        for entry in entries:
-            _import_path(entry["path"])
-            checkers = entry.get("checks")
-            if checkers is None:
-                continue
-            checkers = checkers if isinstance(checkers, list) else [checkers]
-            for checker in checkers:
-                if isinstance(checker, str):  # use default args
-                    name, kwargs = checker, {}
-                elif isinstance(checker, dict) and len(checker) == 1:
-                    name, kwargs = next(iter(checker.items()))
-                else:
-                    raise ValueError(
-                        "Each checker must be either a string or a dict with a single key-value pair."
-                        "e.g checker1: {kwargs1: x, kwargs2: y}"
-                    )
-                try:
-                    builder = registry_get(
-                        RegistryInfo(type="checker", name=name)
-                    )  # get the builder from the registry
-                except KeyError as e:
-                    logger.warning(
-                        f"Could not find custom checker '{name}' in registry: {e}"
-                    )
-                    continue
-                loaded.append(builder(**kwargs))
-
-        return loaded
 
     def get_checkers(self, when: str = "after") -> List[Checker]:
         """Get the checkers to run."""

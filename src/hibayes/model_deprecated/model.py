@@ -18,7 +18,7 @@ import yaml
 from hibayes.utils import init_logger
 
 from ..analysis_state import ModelAnalysisState
-from .models import (
+from .models.models import (
     BaseModel,
     Bernoulli,
     BetaBinomial,

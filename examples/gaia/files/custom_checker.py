@@ -2,7 +2,7 @@ from typing import Tuple
 
 import numpy as np
 
-from hibayes.analyse import Checker, CheckerResult, checker
+from hibayes.check import Checker, CheckerResult, checker
 from hibayes.analysis_state import ModelAnalysisState
 from hibayes.ui import ModellingDisplay
 

@@ -4,6 +4,7 @@ import arviz as az
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
+import xarray as xr
 from numpyro.infer import Predictive
 
 from ..analysis_state import ModelAnalysisState
@@ -38,7 +39,7 @@ def prior_predictive_check(
             parallel=state.model_config.fit.parallel,
             **predictive_kwargs,
         )
-        prior_pred_samples = predictive(rng_key, **state.prior_features)
+        prior_pred_samples = predictive(rng_key, state.prior_features)
         ds = az.from_numpyro(prior=prior_pred_samples)
         pp_ds = ds.prior
 
@@ -53,19 +54,21 @@ def prior_predictive_plot(
     variables: Optional[List[str]] = None,
     kind: str = "kde",
     figsize: Tuple[int, int] = (12, 8),
+    plot_proportion: bool = False,
     save_path: Optional[str] = None,
-    plot_kwargs: dict = None,
-    predictive_kwargs: dict = None,
+    plot_kwargs: Optional[dict] = None,
+    predictive_kwargs: Optional[dict] = None,
 ) -> Checker:
     """
     Check by creating prior predictive plots and getting user feedback.
 
     Args:
         variables: Specific variables to plot. If None, plots all observable variables and main effect params.
-        kind: Type of plot ('kde', 'hist')
+        kind: Type of plot ('kde', 'hist', 'cumulative', 'scatter')
         figsize: Figure size
+        plot_proportion: If True, plot proportion of successes not counts
         save_path: If provided, save plots to this path (will append variable names)
-        plot_kwargs: Additional keyword arguments to pass to plotting functions
+        plot_kwargs: Additional keyword arguments to pass to az.plot_ppc
         predictive_kwargs: Additional keyword arguments to pass to Predictive
     Returns:
         Checker function
@@ -79,50 +82,120 @@ def prior_predictive_plot(
         state: ModelAnalysisState, display: ModellingDisplay | None = None
     ) -> Tuple[ModelAnalysisState, CheckerResult]:
         # make sure the prior predictive group exists
-        if pp_ds := state.inference_data.get("prior_predictive") is None:
+        if state.inference_data.get("prior_predictive") is None:
             state, res = prior_predictive_check(predictive_kwargs=predictive_kwargs)(
                 state, display
             )
             if res == "error":
                 return state, "error"
-        pp_ds = state.inference_data.get("prior_predictive")
+
+        # Handle proportion plotting for prior predictive
+        if plot_proportion:
+            if "n_total" not in state.prior_features:
+                raise ValueError(
+                    "Cannot plot proportion without 'n_total' in prior_features."
+                )
+            # Calculate proportion for prior predictive samples
+            pp_ds = state.inference_data.prior_predictive
+            if "obs" in pp_ds.data_vars:
+                pp_obs = pp_ds["obs"]
+                pp_prop = pp_obs / state.prior_features["n_total"]
+
+                # Add proportion to the prior predictive dataset
+                state.inference_data.prior_predictive["prop_pred"] = pp_prop
+
+        # Create dummy observed_data if it doesn't exist (required for az.plot_ppc)
+        if (
+            not hasattr(state.inference_data, "observed_data")
+            or state.inference_data.observed_data is None
+        ):
+            # Create dummy observed data with same structure as prior_predictive but empty
+            pp_ds = state.inference_data.prior_predictive
+            dummy_observed = {}
+
+            for var_name in pp_ds.data_vars:
+                # Create dummy data with same dimensions but just one observation
+                var_data = pp_ds[var_name]
+                dummy_shape = tuple(
+                    1 if dim in ["chain", "draw"] else var_data.sizes[dim]
+                    for dim in var_data.dims
+                )
+                dummy_coords = {
+                    dim: var_data.coords[dim] if dim not in ["chain", "draw"] else [0]
+                    for dim in var_data.dims
+                }
+
+                # Create dummy data filled with NaN (won't be plotted anyway)
+                dummy_observed[var_name] = xr.DataArray(
+                    np.full(dummy_shape, np.nan),
+                    dims=var_data.dims,
+                    coords=dummy_coords,
+                )
+
+            # Add dummy observed_data to inference_data
+            state.inference_data.add_groups(observed_data=xr.Dataset(dummy_observed))
+
+        # Determine which variables to plot
         plot_params = variables
         if plot_params is None:
-            plot_params = [v for v in pp_ds.data_vars if "obs" in v]
+            if plot_proportion:
+                plot_params = ["prop_pred"]
+            else:
+                plot_params = [
+                    v
+                    for v in state.inference_data.prior_predictive.data_vars
+                    if "obs" in v
+                ]
 
-            plot_params.extend(state.model_config.get_plot_params())
+            # Add model parameters if available
+            if state.model_config.get_plot_params():
+                plot_params.extend(state.model_config.get_plot_params())
 
         user_ok = True
         for var in plot_params:
+            # Check if variable exists in prior_predictive
+            if var not in state.inference_data.prior_predictive.data_vars:
+                display.logger.warning(
+                    f"Warning: Variable '{var}' not found in prior_predictive data"
+                )
+                continue
+
             fig, ax = plt.subplots(figsize=figsize)
-            data = pp_ds[var].values.ravel()
 
-            if kind == "kde":
-                # Merge default plot kwargs with user-provided ones
-                kde_kwargs = {"label": "prior"}
-                kde_kwargs.update(plot_kwargs)
-                az.plot_kde(data, ax=ax, plot_kwargs=kde_kwargs)
-                if display:
-                    x, y = az.kde(data)
+            az.plot_ppc(
+                state.inference_data,
+                ax=ax,
+                group="prior",
+                var_names=[var],
+                kind=kind,
+                figsize=figsize,
+                **plot_kwargs,
+            )
+
+            if display:
+                if kind == "kde":
+                    # Extract data for display
+                    pp_data = state.inference_data.prior_predictive[
+                        var
+                    ].values.flatten()
+                    x, y = az.kde(pp_data)
                     display.add_plot({"x": x, "y": y}, title=f"Prior check – {var}")
-                    if not display.prompt_user(
-                        f"Is the prior predictive distribution for '{var}' acceptable?"
-                    ):
-                        user_ok = False
-                        break
-            else:  # hist
-                # Merge default hist kwargs with user-provided ones
-                hist_kwargs = {"bins": 30, "alpha": 0.7, "label": "prior"}
-                hist_kwargs.update(plot_kwargs)
-                ax.hist(data, **hist_kwargs)
 
-            ax.set_title(f"Prior predictive – {var}")
-            ax.legend()
+                if not display.prompt_user(
+                    f"Is the prior predictive distribution for '{var}' acceptable?"
+                ):
+                    user_ok = False
+                    break
+
+            # Store diagnostic
             state.add_diagnostic(f"{var}_prior_predictive", fig)
 
+            # Save plot if requested
             if save_path:
                 fig.savefig(
-                    f"{save_path}_prior_pred_{var}.png", dpi=300, bbox_inches="tight"
+                    f"{save_path}_prior_pred_{var}.png",
+                    dpi=300,
+                    bbox_inches="tight",
                 )
 
         return state, ("pass" if user_ok else "fail")
@@ -290,9 +363,7 @@ def posterior_predictive_plot(
     def check(
         state: ModelAnalysisState, display: ModellingDisplay | None = None
     ) -> Tuple[ModelAnalysisState, CheckerResult]:
-        if pp_samples := state.inference_data.get("posterior_predictive"):
-            sims = pp_samples["obs"].values.ravel()
-        else:
+        if not state.inference_data.get("posterior_predictive"):
             rng_key = jax.random.PRNGKey(state.model_config.fit.seed + 1)
             predictive = Predictive(
                 state.model,
@@ -302,7 +373,7 @@ def posterior_predictive_plot(
                 **predictive_kwargs,
             )
             pp_samples = predictive(
-                rng_key, **state.prior_features
+                rng_key, state.prior_features
             )  # all features but none of the observables!
 
             # Store as a proper InferenceData group
@@ -310,16 +381,16 @@ def posterior_predictive_plot(
             state.inference_data.extend(pp_ds)
 
         if plot_proportion:
-            if "total_count" not in state.features:
+            if "n_total" not in state.features:
                 raise ValueError(
-                    "Cannot plot proportion without 'total_count' in features."
+                    "Cannot plot proportion without 'n_total' in features."
                 )
             # Observed proportion
-            obs_prop = state.features["obs"] / state.features["total_count"]
+            obs_prop = state.features["obs"] / state.features["n_total"]
 
             # Predicted proportion
             pp_obs = state.inference_data.posterior_predictive["obs"]
-            pp_prop = pp_obs / state.features["total_count"]
+            pp_prop = pp_obs / state.features["n_total"]
 
             # Attach to InferenceData
             if "observed_data" in state.inference_data.groups():
@@ -341,7 +412,7 @@ def posterior_predictive_plot(
             az.plot_ppc(
                 state.inference_data,
                 ax=ax,
-                var_names=["prop_pred"] if plot_proportion else None,
+                var_names=["prop_pred"] if plot_proportion else ["obs"],
                 **plot_kwargs,
             )
             if display:

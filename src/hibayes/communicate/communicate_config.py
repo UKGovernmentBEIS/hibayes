@@ -30,7 +30,7 @@ class CommunicateConfig:
         """Set up default checks if none specified."""
         if not self.enabled_communicators:
             self.enabled_communicators = [
-                registry_get(RegistryInfo(type="communicate", name=check))()
+                registry_get(RegistryInfo(type="communicator", name=check))()
                 for check in self.DEFAULT_COMMUNICATE
             ]
 
@@ -50,72 +50,37 @@ class CommunicateConfig:
 
         enabled_communicators = []
 
-        if custom_communicate_config := config.get("custom_communicate", None):
-            enabled_communicators.extend(
-                cls._load_custom_communicate(custom_communicate_config)
-            )
+        # so custom communicators are registered and can be treated as default
+        if custom_path := config.get("path", None):
+            if not isinstance(custom_path, list):
+                custom_path = [custom_path]
+            for path in custom_path:
+                _import_path(path)
 
-        communicate_config = config.get("communicate", None)
-        if isinstance(communicate_config, list):
-            for communicate in communicate_config:
+        communicate_section = config.get("communicators", None)
+        if isinstance(communicate_section, list):
+            for communicate in communicate_section:
                 if isinstance(communicate, dict):
                     communicate_name, communicate_config = next(
                         iter(communicate.items())
                     )
                     enabled_communicators.append(
                         registry_get(
-                            RegistryInfo(type="communicate", name=communicate_name)
+                            RegistryInfo(type="communicator", name=communicate_name)
                         )(**communicate_config)
                     )
                 else:
                     communicate_name = communicate
                     enabled_communicators.append(
                         registry_get(
-                            RegistryInfo(type="communicate", name=communicate_name)
+                            RegistryInfo(type="communicator", name=communicate_name)
                         )()
                     )
-        elif isinstance(communicate_config, dict):
-            for communicate_name, kwargs in communicate_config.items():
+        elif isinstance(communicate_section, dict):
+            for communicate_name, communicate_config in communicate_section.items():
                 communicator = registry_get(
-                    RegistryInfo(type="communicate", name=communicate_name)
+                    RegistryInfo(type="communicator", name=communicate_name)
                 )
-                enabled_communicators.append(communicator(**kwargs))
+                enabled_communicators.append(communicator(**communicate_config))
 
         return cls(enabled_communicators=enabled_communicators)
-
-    @classmethod
-    def _load_custom_communicate(cls, config: dict) -> List[Communicator]:
-        """config from custom communicate.
-        each mapping has a key path (required) and an optional list of communicate names.
-        """
-        entries = config if isinstance(config, list) else [config]
-        loaded: List[Communicator] = []
-
-        for entry in entries:
-            _import_path(entry["path"])
-            communicators = entry.get("communicate", None)
-            if communicators is None:
-                continue
-            communicators = (
-                communicators if isinstance(communicators, list) else [communicators]
-            )
-            for communicator in communicators:
-                if isinstance(communicator, str):
-                    name, kwargs = communicator, {}
-                elif isinstance(communicator, dict) and len(communicator) == 1:
-                    name, kwargs = next(iter(communicator.items()))
-                else:
-                    raise ValueError(
-                        "Each communicator must be either a string or a dict with kwargs. e.g. communicator1: {kwargs1: x, kwargs2: y}"
-                    )
-                try:
-                    communicator = registry_get(
-                        RegistryInfo(type="communicate", name=name)
-                    )
-                except KeyError:
-                    logger.warning(
-                        f"Communicator {name} not found in registry. Skipping communicator."
-                    )
-                    continue
-                loaded.append(communicator(**kwargs))
-        return loaded

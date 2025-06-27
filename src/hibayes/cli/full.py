@@ -1,8 +1,9 @@
 import argparse
 import pathlib
 
-from ..analysis import AnalysisConfig, communicate, model
+from ..analysis import AnalysisConfig, communicate, model, process_data
 from ..load import get_sample_df
+from ..platform import configure_computation_platform
 from ..ui import ModellingDisplay
 
 
@@ -11,7 +12,10 @@ def run_full(args):
     display = ModellingDisplay()
     out = pathlib.Path(args.out)
 
-    print(config.data_loader)
+    configure_computation_platform(
+        platform_config=config.platform,
+        display=display,
+    )
 
     out.mkdir(parents=True, exist_ok=True)
     df = get_sample_df(
@@ -24,11 +28,18 @@ def run_full(args):
         compression="snappy",
     )
 
-    analysis_state = model(
+    analysis_state = process_data(
         data=df,
-        model_config=config.models,
+        config=config.data_process,
+        display=display,
+    )
+
+    analysis_state.save(path=out)
+
+    analysis_state = model(
+        analysis_state=analysis_state,
+        models_to_run_config=config.models,
         checker_config=config.checkers,
-        platform_config=config.platform,
         display=display,
     )
     analysis_state.save(path=out)

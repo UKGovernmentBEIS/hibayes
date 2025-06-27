@@ -60,7 +60,7 @@ def checker(
         def checker_wrapper(*args, **kwargs) -> Checker:
             checker = cb(*args, **kwargs)
 
-            @wraps(checker)
+            @wraps(checker_builder)
             def checker_interface(
                 state: ModelAnalysisState,
                 display: ModellingDisplay | None = None,

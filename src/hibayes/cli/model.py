@@ -1,21 +1,9 @@
 import argparse
 import pathlib
 
-import pandas as pd
-
-from ..analysis import AnalysisConfig, model
+from ..analysis import AnalysisConfig, AnalysisState, model
+from ..platform import configure_computation_platform
 from ..ui import ModellingDisplay
-
-
-def _read_df(path: pathlib.Path) -> pd.DataFrame:
-    ext = path.suffix.lower()
-    if ext == ".parquet":
-        return pd.read_parquet(path)
-    if ext == ".csv":
-        return pd.read_csv(path)
-    if ext in (".jsonl", ".json"):
-        return pd.read_json(path, lines=True)
-    raise ValueError(f"Unsupported file extension: {ext}")
 
 
 def run_model(args):
@@ -23,14 +11,18 @@ def run_model(args):
     display = ModellingDisplay()
     out = pathlib.Path(args.out)
 
-    out.mkdir(parents=True, exist_ok=True)
-    df = _read_df(pathlib.Path(args.data))
-
-    analysis_state = model(
-        data=df,
-        model_config=config.models,
-        checker_config=config.checkers,
+    configure_computation_platform(
         platform_config=config.platform,
+        display=display,
+    )
+
+    out.mkdir(parents=True, exist_ok=True)
+
+    analysis_state = AnalysisState.load(path=pathlib.Path(args.analysis_state))
+    analysis_state = model(
+        analysis_state=analysis_state,
+        models_to_run_config=config.models,
+        checker_config=config.checkers,
         display=display,
     )
     analysis_state.save(path=out)
@@ -46,9 +38,9 @@ def main():
         help="Path to the configuration file (YAML format). See examples/*/*.yaml for examples",
     )
     parser.add_argument(
-        "--data",
+        "--analysis-state",
         required=True,
-        help="Path to the processed data file (Parquet, csv, jsonl format accepted).",
+        help="Path to the dir containing the analysis state.",
     )
     parser.add_argument(
         "--out", required=True, help="dir path to write the DVC tracking files"
