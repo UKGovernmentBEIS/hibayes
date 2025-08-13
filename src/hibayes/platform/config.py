@@ -2,6 +2,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict
 
+import jax
 import yaml
 
 
@@ -9,16 +10,31 @@ import yaml
 class PlatformConfig:
     device_type: str = "cpu"  # Device type (cpu, gpu, tpu)
     num_devices: int | None = None  # Number of devices to use (None = auto-detect)
+    gpu_memory_fraction: float = 0.9  # Fraction of GPU memory to use (0.1-1.0)
 
     def __post_init__(self):
         # Auto-detect number of devices if not explicitly provided
         if self.num_devices is None:
             if self.device_type == "cpu":
                 self.num_devices = os.cpu_count()
+            elif self.device_type == "gpu":
+                try:
+                    # Try to get GPU count from JAX
+                    gpu_devices = jax.devices("gpu")
+                    self.num_devices = len(gpu_devices) if gpu_devices else 0
+                    if self.num_devices == 0:
+                        raise RuntimeError("No GPU devices found")
+                except Exception:
+                    raise RuntimeError(
+                        "GPU support requested but no GPUs available. "
+                        "Ensure CUDA/ROCm is installed and JAX can detect GPUs."
+                    )
             else:
-                raise NotImplementedError(
-                    f"{self.device_type.upper()} support is not yet implemented. Please use CPU for now."
-                )
+                raise ValueError(f"Unsupported device type: {self.device_type}")
+
+        # Validate gpu_memory_fraction
+        if not 0.1 <= self.gpu_memory_fraction <= 1.0:
+            raise ValueError("gpu_memory_fraction must be between 0.1 and 1.0")
 
     def merge_in_dict(self, config_dict: Dict[str, Any]) -> None:
         """
@@ -55,4 +71,5 @@ class PlatformConfig:
         return cls(
             device_type=config.get("device_type", "cpu"),
             num_devices=config.get("num_devices", None),
+            gpu_memory_fraction=config.get("gpu_memory_fraction", 0.9),
         )

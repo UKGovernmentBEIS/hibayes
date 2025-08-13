@@ -37,6 +37,9 @@ packages = ["src/hibayes"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0.0", "pytest-cov>=4.0.0", "pytest-mock>=3.10.0", "pre-commit>=4.2.0"]
+gpu = [
+    "numpyro[cuda]"
+]
 
 [project.scripts]
 hibayes-load = "hibayes.cli.load:main"
