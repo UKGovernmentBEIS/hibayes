@@ -1,4 +1,5 @@
 import contextlib
+import datetime
 import logging
 import time
 from functools import partial
@@ -44,6 +45,7 @@ class ModellingDisplay:
 
         # Set up logs panel
         self.logs = []
+        self.all_logs = []  # Store all logs for saving
         self.max_logs = max_logs
         self.layout["logs"].update(
             Panel("", title="Logger output", border_style="dim white")
@@ -126,8 +128,12 @@ class ModellingDisplay:
 
     def update_logs(self, log_entry):
         """Callback for LogCaptureHandler to update logs panel."""
-        self.logs.append(log_entry)
-        # Keep only the last N logs
+        timestamped_entry = (
+            f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {log_entry}"
+        )
+        self.logs.append(timestamped_entry)
+        self.all_logs.append(timestamped_entry)
+        # Keep only the last N logs for display
         self.logs = self.logs[-self.max_logs :]
         # Update the logs panel
         self.layout["logs"].update(
@@ -336,6 +342,10 @@ class ModellingDisplay:
             box=box.ROUNDED,
         )
         self.layout["checks"].update(check_panel)
+
+    def get_all_logs(self) -> List[str]:
+        """Get all captured logs."""
+        return self.all_logs.copy()
 
 
 # Create a custom progress tracking integration for NumPyro's MCMC

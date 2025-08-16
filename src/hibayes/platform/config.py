@@ -1,19 +1,25 @@
 import os
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Literal
 
 import jax
+import numpyro
 import yaml
 
-from ...utils import init_logger
+from ..utils import init_logger
 
 logger = init_logger()
+
+ChainMethod = Literal["parallel", "sequential", "vectorised"]
+
 
 @dataclass
 class PlatformConfig:
     device_type: str = "cpu"  # Device type (cpu, gpu, tpu)
     num_devices: int | None = None  # Number of devices to use (None = auto-detect)
+    devices: list[str] = None  # List of device names (e.g., ["gpu:0", "gpu:1"])
     gpu_memory_fraction: float = 0.9  # Fraction of GPU memory to use (0.1-1.0)
+    chain_method: ChainMethod = "parallel"  # Method for running chains
 
     def __post_init__(self):
         # Auto-detect number of devices if not explicitly provided
@@ -21,16 +27,22 @@ class PlatformConfig:
             if self.device_type == "cpu":
                 self.num_devices = os.cpu_count()
             elif self.device_type == "gpu":
+                # Set CPU device count BEFORE checking for GPUs
+                # This ensures if we fall back to CPU, the device count is already configured
+                cpu_count = os.cpu_count()
+                numpyro.set_host_device_count(cpu_count)
+
                 try:
                     gpu_devices = jax.devices("gpu")
                     self.num_devices = len(gpu_devices) if gpu_devices else 0
+                    self.devices = gpu_devices if gpu_devices else []
                     if self.num_devices == 0:
                         raise RuntimeError("No GPU devices found")
                 except Exception:
                     # Fallback to CPU if GPU detection fails
                     logger.warning("No GPU devices found, falling back to CPU.")
                     self.device_type = "cpu"
-                    self.num_devices = os.cpu_count()
+                    self.num_devices = cpu_count
             else:
                 raise ValueError(f"Unsupported device type: {self.device_type}")
 

@@ -12,6 +12,7 @@ import pandas as pd
 from arviz import InferenceData
 
 from .model import Model, ModelConfig
+from .platform import PlatformConfig
 from .utils import init_logger
 
 if TYPE_CHECKING:
@@ -44,6 +45,7 @@ class ModelAnalysisState:
         self,
         model: Model,  # the model function to be fitted
         model_config: "ModelConfig",  # model configuration
+        platform_config: Optional[PlatformConfig] = None,  # platform configuration
         features: Optional["Features"] = None,
         coords: Optional["Coords"] = None,
         dims: Optional["Dims"] = None,
@@ -57,6 +59,7 @@ class ModelAnalysisState:
     ) -> None:
         self._model: Model = model
         self._model_config: "ModelConfig" = model_config
+        self._platform_config: PlatformConfig = platform_config or PlatformConfig()
         self._features: "Features" = features or {}
         self._coords: "Coords" | None = coords
         self._dims: "Dims" | None = dims
@@ -92,6 +95,16 @@ class ModelAnalysisState:
     def model_config(self, model_config: "ModelConfig") -> None:
         """Set the model configuration."""
         self._model_config = model_config
+
+    @property
+    def platform_config(self) -> PlatformConfig:
+        """Get the platform configuration."""
+        return self._platform_config
+
+    @platform_config.setter
+    def platform_config(self, platform_config: PlatformConfig) -> None:
+        """Set the platform configuration."""
+        self._platform_config = platform_config
 
     @property
     def inference_data(self) -> InferenceData | None:
@@ -201,6 +214,9 @@ class ModelAnalysisState:
         )
 
         self.model_config.save(path / "model_config.json")
+        
+        # Save platform config
+        _dump_json(self.platform_config, path / "platform_config.json")
 
         if self.features:
             with (path / "features.pkl").open("wb") as fp:
@@ -261,6 +277,11 @@ class ModelAnalysisState:
             dims = _load_json(path / "dims.json")
 
         model_config = ModelConfig.from_dict(_load_json(path / "model_config.json"))
+        
+        # Load platform config
+        platform_config = None
+        if (path / "platform_config.json").exists():
+            platform_config = PlatformConfig.from_dict(_load_json(path / "platform_config.json"))
 
         diagnostics = None
         if (path / "diagnostics.json").exists():
@@ -273,6 +294,7 @@ class ModelAnalysisState:
         return cls(
             model=model,
             model_config=model_config,
+            platform_config=platform_config,
             features=features,
             coords=coords,
             dims=dims,
@@ -302,6 +324,7 @@ class AnalysisState:
         ] = None,  # variable names to coordinates - used for nice plotting vars
         models: List[ModelAnalysisState] = [],
         communicate: Dict[str, plt.Figure | pd.DataFrame] = {},
+        logs: List[str] = [],
     ) -> None:
         self._data: pd.DataFrame = (
             data  # extracted data from inspect eval logs see hibayes.load for details
@@ -316,6 +339,7 @@ class AnalysisState:
         self._communicate: Dict[
             str, plt.Figure | pd.DataFrame
         ] | None = communicate  # plots of findings
+        self._logs: List[str] = logs
 
     @property
     def data(self) -> pd.DataFrame:
@@ -414,6 +438,20 @@ class AnalysisState:
         self._communicate[table_name] = table
 
     @property
+    def logs(self) -> List[str]:
+        """Get the logs."""
+        return self._logs
+
+    @logs.setter
+    def logs(self, logs: List[str]) -> None:
+        """Set the logs."""
+        self._logs = logs
+
+    def add_log(self, log_entry: str) -> None:
+        """Add a log entry."""
+        self._logs.append(log_entry)
+
+    @property
     def models(self) -> List[ModelAnalysisState]:
         """Get the models."""
         return self._models
@@ -501,6 +539,13 @@ class AnalysisState:
 
         if self.dims is not None:
             _dump_json(self.dims, path / "dims.json")
+        
+        # Save logs
+        if self._logs:
+            with (path / "logs.txt").open("w", encoding="utf-8") as fp:
+                for log_entry in self._logs:
+                    fp.write(f"{log_entry}\n")
+        
         if self._communicate:
             comm_path = path / "communicate"
             _ensure_dir(comm_path)
@@ -533,6 +578,7 @@ class AnalysisState:
         data = pd.read_parquet(path / "data.parquet")
 
         # Features
+        features = None
         if (path / "features.pkl").exists():
             with (path / "features.pkl").open("rb") as fp:
                 features: "Features" = pickle.load(fp)
@@ -545,6 +591,12 @@ class AnalysisState:
             dims: "Dims" = _load_json(path / "dims.json")
         else:
             dims = None
+
+        # Load logs
+        logs = []
+        if (path / "logs.txt").exists():
+            with (path / "logs.txt").open("r", encoding="utf-8") as fp:
+                logs = [line.strip() for line in fp.readlines()]
 
         # figures and tables!
         communicate: Dict[str, plt.Figure | pd.DataFrame] = {}
@@ -580,4 +632,5 @@ class AnalysisState:
             coords=coords,
             dims=dims,
             communicate=communicate,
+            logs=logs,
         )

@@ -40,6 +40,7 @@ def run_full(args):
         analysis_state=analysis_state,
         models_to_run_config=config.models,
         checker_config=config.checkers,
+        platform_config=config.platform,
         display=display,
     )
     analysis_state.save(path=out)
