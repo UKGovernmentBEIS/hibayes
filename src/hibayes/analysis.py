@@ -44,6 +44,11 @@ class AnalysisConfig:
     def from_dict(cls, config: dict) -> "AnalysisConfig":
         """Load configuration from a dictionary."""
 
+        # Create platform config first so it can be used for model config (fit config is conditional on platform)
+        platform_config = PlatformConfig.from_dict(
+            config["platform"] if "platform" in config else {}
+        )
+
         return cls(
             data_loader=DataLoaderConfig.from_dict(
                 config["data_loader"] if "data_loader" in config else {}
@@ -52,7 +57,8 @@ class AnalysisConfig:
                 config["data_process"] if "data_process" in config else {}
             ),
             models=ModelsToRunConfig.from_dict(
-                config["model"] if "model" in config else {}
+                config["model"] if "model" in config else {},
+                platform_config
             ),
             checkers=CheckerConfig.from_dict(
                 config["check"] if "check" in config else {}
@@ -60,9 +66,7 @@ class AnalysisConfig:
             communicate=CommunicateConfig.from_dict(
                 config["communicate"] if "communicate" in config else {}
             ),
-            platform=PlatformConfig.from_dict(
-                config["platform"] if "platform" in config else {}
-            ),
+            platform=platform_config,
         )
 
 

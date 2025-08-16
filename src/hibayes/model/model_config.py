@@ -42,14 +42,29 @@ class FitConfig:
         """Return a *new* FitConfig with updates applied."""
         return replace(self, **updates)
 
+    def __post_init__(self) -> None:
+        if self.chain_method not in ["parallel", "sequential", "vectorised"]:
+            raise ValueError(
+                f"Chain method {self.chain_method} not recognised. Must be one of 'parallel', 'sequential', or 'vectorised'."
+            )
+
+    def validate_and_adjust_for_platform(self, platform_config) -> "FitConfig":
+        """Adjust chain_method based on platform capabilities."""
+        if self.chain_method == "vectorised" and platform_config.device_type == "cpu":
+            logger.warning(
+                "Vectorised chain method is not supported on CPU. Falling back to parallel."
+            )
+            return self.merged(chain_method="parallel")
+        return self
+
 
 @dataclass(frozen=True, slots=True)
 class ModelConfig:
     fit: FitConfig = field(default_factory=FitConfig)
 
-    main_effect_params: Optional[
-        List[str]
-    ] = None  # a list of the main effect parameters in the model which you would like to plot. If None then all parameters are treated as main.
+    main_effect_params: Optional[List[str]] = (
+        None  # a list of the main effect parameters in the model which you would like to plot. If None then all parameters are treated as main.
+    )
     tag: Optional[str] = None  # a tag for the model config - e.g. version 1
     link_function: Callable[[np.ndarray], np.ndarray] = field(
         default=logit_to_prob  # link function for the model
@@ -71,7 +86,7 @@ class ModelConfig:
         return cls.from_dict(config)
 
     @classmethod
-    def from_dict(cls, config: dict) -> "ModelConfig":
+    def from_dict(cls, config: dict, platform_config=None) -> "ModelConfig":
         """Load configuration from a dictionary."""
         if config is None:
             config = {}
@@ -114,13 +129,23 @@ class ModelConfig:
                 f"Got {type(link_arg)} instead."
             )
 
-        return cls(
+        model_config = cls(
             fit=fit_config,
             main_effect_params=structured_args.get("main_effect_params", None),
             tag=structured_args.get("tag", None),
             link_function=link_function,
             extra_kwargs=extra_kwargs,
         )
+
+        # Apply platform-aware adjustments if platform_config provided
+        if platform_config is not None:
+            adjusted_fit = model_config.fit.validate_and_adjust_for_platform(
+                platform_config
+            )
+            if adjusted_fit != model_config.fit:
+                model_config = replace(model_config, fit=adjusted_fit)
+
+        return model_config
 
     def save(self, path: Path) -> None:
         """Save the model configuration as a json file."""
@@ -157,7 +182,7 @@ class ModelsToRunConfig:
         return cls.from_dict(config)
 
     @classmethod
-    def from_dict(cls, config: dict) -> "ModelsToRunConfig":
+    def from_dict(cls, config: dict, platform_config=None) -> "ModelsToRunConfig":
         """Load configuration from a dictionary."""
         if config is None:
             config = {}
@@ -177,7 +202,9 @@ class ModelsToRunConfig:
                 if isinstance(model, dict):
                     model_name = model["name"]
 
-                    model_config = ModelConfig.from_dict(model["config"])
+                    model_config = ModelConfig.from_dict(
+                        model["config"], platform_config
+                    )
                     enabled_models.append(
                         (
                             registry_get(RegistryInfo(type="model", name=model_name))(
@@ -188,15 +215,24 @@ class ModelsToRunConfig:
                     )
                 else:
                     model_name = model
+                    model_config = ModelConfig()
+                    if platform_config is not None:
+                        adjusted_fit = (
+                            model_config.fit.validate_and_adjust_for_platform(
+                                platform_config
+                            )
+                        )
+                        if adjusted_fit != model_config.fit:
+                            model_config = replace(model_config, fit=adjusted_fit)
                     enabled_models.append(
                         (
                             registry_get(RegistryInfo(type="model", name=model_name))(),
-                            ModelConfig(),
+                            model_config,
                         )
                     )
         elif isinstance(model_section, dict):
             for model_name, model_config in model_section.items():
-                model_config = ModelConfig.from_dict(model_config)
+                model_config = ModelConfig.from_dict(model_config, platform_config)
                 enabled_models.append(
                     (
                         registry_get(RegistryInfo(type="model", name=model_name))(

@@ -5,6 +5,9 @@ from typing import Any, Dict
 import jax
 import yaml
 
+from ...utils import init_logger
+
+logger = init_logger()
 
 @dataclass
 class PlatformConfig:
@@ -19,16 +22,15 @@ class PlatformConfig:
                 self.num_devices = os.cpu_count()
             elif self.device_type == "gpu":
                 try:
-                    # Try to get GPU count from JAX
                     gpu_devices = jax.devices("gpu")
                     self.num_devices = len(gpu_devices) if gpu_devices else 0
                     if self.num_devices == 0:
                         raise RuntimeError("No GPU devices found")
                 except Exception:
-                    raise RuntimeError(
-                        "GPU support requested but no GPUs available. "
-                        "Ensure CUDA/ROCm is installed and JAX can detect GPUs."
-                    )
+                    # Fallback to CPU if GPU detection fails
+                    logger.warning("No GPU devices found, falling back to CPU.")
+                    self.device_type = "cpu"
+                    self.num_devices = os.cpu_count()
             else:
                 raise ValueError(f"Unsupported device type: {self.device_type}")
 
