@@ -36,7 +36,7 @@ def prior_predictive_check(
         predictive = Predictive(
             state.model,
             num_samples=num_samples,
-            parallel=state.model_config.fit.parallel,
+            parallel=state.platform_config.chain_method != "sequential",
             **predictive_kwargs,
         )
         prior_pred_samples = predictive(rng_key, state.prior_features)
@@ -373,7 +373,7 @@ def posterior_predictive_plot(
                 state.model,
                 posterior_samples=_posterior_samples_as_dict(state.inference_data),
                 num_samples=num_samples,
-                parallel=state.model_config.fit.parallel,
+                parallel=state.platform_config.chain_method != "sequential",
                 **predictive_kwargs,
             )
             pp_samples = predictive(
