@@ -30,7 +30,7 @@ class AnalysisConfig:
     models: ModelsToRunConfig
     checkers: CheckerConfig
     communicate: CommunicateConfig
-    platform: PlatformConfig = field(default_factory=PlatformConfig)
+    platform: PlatformConfig
 
     @classmethod
     def from_yaml(cls, path: str) -> "AnalysisConfig":
@@ -44,11 +44,6 @@ class AnalysisConfig:
     def from_dict(cls, config: dict) -> "AnalysisConfig":
         """Load configuration from a dictionary."""
 
-        # Create platform config first so it can be used for model config (fit config is conditional on platform)
-        platform_config = PlatformConfig.from_dict(
-            config["platform"] if "platform" in config else {}
-        )
-
         return cls(
             data_loader=DataLoaderConfig.from_dict(
                 config["data_loader"] if "data_loader" in config else {}
@@ -58,7 +53,6 @@ class AnalysisConfig:
             ),
             models=ModelsToRunConfig.from_dict(
                 config["model"] if "model" in config else {},
-                platform_config
             ),
             checkers=CheckerConfig.from_dict(
                 config["check"] if "check" in config else {}
@@ -66,7 +60,9 @@ class AnalysisConfig:
             communicate=CommunicateConfig.from_dict(
                 config["communicate"] if "communicate" in config else {}
             ),
-            platform=platform_config,
+            platform=PlatformConfig.from_dict(
+                config["platform"] if "platform" in config else {}
+            ),
         )
 
 
@@ -104,6 +100,9 @@ def process_data(
 
     if display.is_live:
         display.stop()
+
+    # Capture all logs from display and add to analysis state
+    analysis_state.logs = display.get_all_logs()
     return analysis_state
 
 
@@ -111,6 +110,7 @@ def model(
     analysis_state: AnalysisState,
     models_to_run_config: ModelsToRunConfig,
     checker_config: CheckerConfig,
+    platform_config: PlatformConfig,
     display: ModellingDisplay,
 ):
     display.setupt_for_modelling()
@@ -123,6 +123,7 @@ def model(
             model_analysis_state = ModelAnalysisState(
                 model=model,
                 model_config=model_config,
+                platform_config=platform_config,
                 features=analysis_state.features,
                 coords=analysis_state.coords,
                 dims=analysis_state.dims,
@@ -152,6 +153,8 @@ def model(
     if display.is_live:
         display.stop()
 
+    # Update logs from display
+    analysis_state.logs = display.get_all_logs()
     return analysis_state
 
 
@@ -218,6 +221,9 @@ def communicate(
 
     if display.is_live:
         display.stop()
+
+    # Update logs from display
+    analysis_state.logs = display.get_all_logs()
     return analysis_state
 
 
