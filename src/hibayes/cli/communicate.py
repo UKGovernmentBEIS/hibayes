@@ -1,7 +1,6 @@
 import argparse
 import pathlib
 
-
 from ..analysis import AnalysisConfig, AnalysisState, communicate
 from ..ui import ModellingDisplay
 
@@ -9,7 +8,12 @@ from ..ui import ModellingDisplay
 def run_communicate(args):
     analysis_state = AnalysisState.load(path=pathlib.Path(args.analysis_state))
     config = AnalysisConfig.from_yaml(args.config)
-    display = ModellingDisplay()
+
+    display = ModellingDisplay(
+        initial_stats=analysis_state.display_stats
+        if analysis_state.display_stats
+        else None
+    )
     out = pathlib.Path(args.out)
 
     out.mkdir(parents=True, exist_ok=True)
@@ -32,7 +36,8 @@ def main():
         help="Path to the configuration file (YAML format). See examples",
     )
     parser.add_argument(
-        "--analysis_state",
+        "--analysis-state",
+        dest="analysis_state",
         required=True,
         help="Path to the analysis state dir",
     )

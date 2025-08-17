@@ -11,10 +11,10 @@ stages:
         - data_loader
 
   process:
-    cmd: hibayes-process --config files/config.yaml --data .output/load/data.parquet --out .output/process/
+    cmd: hibayes-process --config files/config.yaml --analysis-state .output/load/ --out .output/process/
     deps:
     - ../../src/hibayes/
-    - .output/load/data.parquet
+    - .output/load/
     outs:
     - .output/process/
     params:

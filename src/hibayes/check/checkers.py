@@ -36,7 +36,7 @@ def prior_predictive_check(
         predictive = Predictive(
             state.model,
             num_samples=num_samples,
-            parallel=state.model_config.fit.parallel,
+            parallel=state.platform_config.chain_method != "sequential",
             **predictive_kwargs,
         )
         prior_pred_samples = predictive(rng_key, state.prior_features)
@@ -58,6 +58,7 @@ def prior_predictive_plot(
     save_path: Optional[str] = None,
     plot_kwargs: Optional[dict] = None,
     predictive_kwargs: Optional[dict] = None,
+    interactive: bool = True,
 ) -> Checker:
     """
     Check by creating prior predictive plots and getting user feedback.
@@ -70,6 +71,7 @@ def prior_predictive_plot(
         save_path: If provided, save plots to this path (will append variable names)
         plot_kwargs: Additional keyword arguments to pass to az.plot_ppc
         predictive_kwargs: Additional keyword arguments to pass to Predictive
+        interactive: If True, prompt user for approval on each plot
     Returns:
         Checker function
     """
@@ -172,7 +174,7 @@ def prior_predictive_plot(
                 **plot_kwargs,
             )
 
-            if display:
+            if display and interactive:
                 if kind == "kde":
                     # Extract data for display
                     pp_data = state.inference_data.prior_predictive[
@@ -334,6 +336,7 @@ def posterior_predictive_plot(
     plot_proportion: bool = False,
     plot_kwargs: dict = None,
     predictive_kwargs: dict = None,
+    interactive: bool = True,
 ) -> Checker:
     """
     Posterior-predictive check.
@@ -346,6 +349,7 @@ def posterior_predictive_plot(
         save_path: If provided, save plot to this path
         plot_kwargs: Additional keyword arguments to pass to plotting functions
         predictive_kwargs: Additional keyword arguments to pass to Predictive
+        interactive: If True, prompt user for approval on each plot
     """
     if plot_kwargs is None:
         plot_kwargs = {}
@@ -369,7 +373,7 @@ def posterior_predictive_plot(
                 state.model,
                 posterior_samples=_posterior_samples_as_dict(state.inference_data),
                 num_samples=num_samples,
-                parallel=state.model_config.fit.parallel,
+                parallel=state.platform_config.chain_method != "sequential",
                 **predictive_kwargs,
             )
             pp_samples = predictive(
@@ -415,7 +419,7 @@ def posterior_predictive_plot(
                 var_names=["prop_pred"] if plot_proportion else ["obs"],
                 **plot_kwargs,
             )
-            if display:
+            if display and interactive:
                 lines = ax.get_lines()
                 obs_line = next(
                     line for line in lines if line.get_label() == "Observed"

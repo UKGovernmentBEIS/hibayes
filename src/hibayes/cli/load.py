@@ -8,14 +8,10 @@ from ..ui import ModellingDisplay
 def run_load(args):
     config = AnalysisConfig.from_yaml(args.config)
     display = ModellingDisplay()
-    df = load_data(config=config.data_loader, display=display)
+    analysis_state = load_data(config=config.data_loader, display=display)
     out = pathlib.Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(
-        out / "data.parquet",
-        engine="pyarrow",  # auto might result in different engines in different setups)
-        compression="snappy",
-    )
+    analysis_state.save(path=out)
 
 
 def main():
