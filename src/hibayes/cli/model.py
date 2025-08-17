@@ -8,7 +8,15 @@ from ..ui import ModellingDisplay
 
 def run_model(args):
     config = AnalysisConfig.from_yaml(args.config)
-    display = ModellingDisplay()
+
+    # Load analysis state first to get display stats
+    analysis_state = AnalysisState.load(path=pathlib.Path(args.analysis_state))
+
+    display = ModellingDisplay(
+        initial_stats=analysis_state.display_stats
+        if analysis_state.display_stats
+        else None
+    )
     out = pathlib.Path(args.out)
 
     configure_computation_platform(
@@ -18,7 +26,6 @@ def run_model(args):
 
     out.mkdir(parents=True, exist_ok=True)
 
-    analysis_state = AnalysisState.load(path=pathlib.Path(args.analysis_state))
     analysis_state = model(
         analysis_state=analysis_state,
         models_to_run_config=config.models,
@@ -40,6 +47,7 @@ def main():
     )
     parser.add_argument(
         "--analysis-state",
+        dest="analysis_state",
         required=True,
         help="Path to the dir containing the analysis state.",
     )

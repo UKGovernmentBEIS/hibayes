@@ -33,7 +33,12 @@ from .plot import plotextMixin
 class ModellingDisplay:
     """Rich display for fitting and testing statistical models."""
 
-    def __init__(self, logger: logging.Logger | None = None, max_logs: int = 5):
+    def __init__(
+        self,
+        logger: logging.Logger | None = None,
+        max_logs: int = 5,
+        initial_stats: dict | None = None,
+    ):
         self.layout = Layout()
         self.layout.split_column(
             Layout(name="logs", size=8),
@@ -97,7 +102,7 @@ class ModellingDisplay:
 
         self.layout["body"].update(self.body_layout)
 
-        self.stats = {
+        default_stats = {
             # Processing stats
             "Samples found": 0,
             "Samples processed": 0,
@@ -113,6 +118,12 @@ class ModellingDisplay:
             "Checks failed": 0,
             "Errors encountered": 0,
         }
+
+        if initial_stats:
+            # Merge initial_stats into default_stats, preserving any additional keys
+            default_stats.update(initial_stats)
+
+        self.stats = default_stats
 
         self.start_time = time.time()
         self.live = None
@@ -346,6 +357,17 @@ class ModellingDisplay:
     def get_all_logs(self) -> List[str]:
         """Get all captured logs."""
         return self.all_logs.copy()
+
+    def get_stats_for_persistence(self) -> Dict[str, Any]:
+        """Get display statistics in a serialisable format for persistence."""
+        # Convert sets to lists for JSON serialization
+        stats_copy = {}
+        for key, value in self.stats.items():
+            if isinstance(value, set):
+                stats_copy[key] = list(value)
+            else:
+                stats_copy[key] = value
+        return stats_copy
 
 
 # Create a custom progress tracking integration for NumPyro's MCMC

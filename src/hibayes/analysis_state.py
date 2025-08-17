@@ -325,6 +325,7 @@ class AnalysisState:
         models: List[ModelAnalysisState] = [],
         communicate: Dict[str, plt.Figure | pd.DataFrame] = {},
         logs: List[str] = [],
+        display_stats: Optional[Dict[str, Any]] = None,  # persistent display statistics
     ) -> None:
         self._data: pd.DataFrame = (
             data  # extracted data from inspect eval logs see hibayes.load for details
@@ -340,6 +341,7 @@ class AnalysisState:
             str, plt.Figure | pd.DataFrame
         ] | None = communicate  # plots of findings
         self._logs: List[str] = logs
+        self._display_stats: Dict[str, Any] = display_stats if display_stats is not None else {}
 
     @property
     def data(self) -> pd.DataFrame:
@@ -461,6 +463,16 @@ class AnalysisState:
         """Set the models."""
         self._models = models
 
+    @property
+    def display_stats(self) -> Dict[str, Any]:
+        """Get the display statistics."""
+        return self._display_stats
+
+    @display_stats.setter
+    def display_stats(self, display_stats: Dict[str, Any]) -> None:
+        """Set the display statistics."""
+        self._display_stats = display_stats
+
     def add_model(self, model: ModelAnalysisState) -> None:
         """Add a model to the analysis state."""
         if not model.features:
@@ -546,6 +558,10 @@ class AnalysisState:
                 for log_entry in self._logs:
                     fp.write(f"{log_entry}\n")
         
+        # Save display stats
+        if self._display_stats:
+            _dump_json(self._display_stats, path / "display_stats.json")
+        
         if self._communicate:
             comm_path = path / "communicate"
             _ensure_dir(comm_path)
@@ -598,6 +614,11 @@ class AnalysisState:
             with (path / "logs.txt").open("r", encoding="utf-8") as fp:
                 logs = [line.strip() for line in fp.readlines()]
 
+        # Load display stats
+        display_stats = {}
+        if (path / "display_stats.json").exists():
+            display_stats = _load_json(path / "display_stats.json")
+
         # figures and tables!
         communicate: Dict[str, plt.Figure | pd.DataFrame] = {}
         comm_path = path / "communicate"
@@ -633,4 +654,5 @@ class AnalysisState:
             dims=dims,
             communicate=communicate,
             logs=logs,
+            display_stats=display_stats,
         )
