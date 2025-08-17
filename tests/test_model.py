@@ -415,8 +415,6 @@ class TestFitConfig:
         assert config.chains == 4
         assert config.seed == 0
         assert config.progress_bar is True
-        assert config.parallel is True
-        assert config.chain_method == "parallel"
         assert config.target_accept == 0.8
         assert config.max_tree_depth == 10
 
@@ -429,7 +427,6 @@ class TestFitConfig:
             chains=2,
             seed=42,
             progress_bar=False,
-            chain_method="sequential",
             target_accept=0.9,
             max_tree_depth=15,
         )
@@ -440,7 +437,6 @@ class TestFitConfig:
         assert config.chains == 2
         assert config.seed == 42
         assert config.progress_bar is False
-        assert config.chain_method == "sequential"
         assert config.target_accept == 0.9
         assert config.max_tree_depth == 15
 
@@ -1147,11 +1143,6 @@ class TestModelAdvancedFeatures:
             config = FitConfig(method=method)
             assert config.method == method
 
-        # Test all chain methods
-        for chain_method in ["parallel", "sequential", "vectorised"]:
-            config = FitConfig(chain_method=chain_method)
-            assert config.chain_method == chain_method
-
         # Test boundary values
         config = FitConfig(
             samples=1,
@@ -1262,7 +1253,6 @@ class TestModelConfigurationFiles:
                             "chains": 2,
                             "seed": 42,
                             "progress_bar": False,
-                            "chain_method": "sequential",
                             "target_accept": 0.9,
                             "max_tree_depth": 15,
                         },

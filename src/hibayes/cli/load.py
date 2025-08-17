@@ -11,7 +11,6 @@ def run_load(args):
     analysis_state = load_data(config=config.data_loader, display=display)
     out = pathlib.Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    # Save the entire analysis state
     analysis_state.save(path=out)
 
 

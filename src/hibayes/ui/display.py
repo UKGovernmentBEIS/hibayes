@@ -119,9 +119,13 @@ class ModellingDisplay:
             "Errors encountered": 0,
         }
 
+        # Track whether we're loading from a saved state
+        self._loaded_from_state = False
         if initial_stats:
             # Merge initial_stats into default_stats, preserving any additional keys
             default_stats.update(initial_stats)
+            if "Processing speed" in initial_stats:
+                self._loaded_from_state = True
 
         self.stats = default_stats
 
@@ -228,11 +232,15 @@ class ModellingDisplay:
             return
 
         # Calculate processing speed if loading data
-        if not self.modelling:
-            elapsed = time.time() - self.start_time
-            if elapsed > 0:
-                samples_per_sec = self.stats["Samples processed"] / elapsed
-                self.stats["Processing speed"] = f"{samples_per_sec:.1f} samples/sec"
+        # Only calculate if we're actively processing (not loading from a saved state)
+        if not self.modelling and self.stats["Samples processed"] > 0:
+            if not (hasattr(self, "_loaded_from_state") and self._loaded_from_state):
+                elapsed = time.time() - self.start_time
+                if elapsed > 0:
+                    samples_per_sec = self.stats["Samples processed"] / elapsed
+                    self.stats["Processing speed"] = (
+                        f"{samples_per_sec:.1f} samples/sec"
+                    )
 
         # Rebuild the table
         self.stats_table = Table(box=box.SIMPLE)
