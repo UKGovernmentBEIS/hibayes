@@ -25,6 +25,7 @@ There are a list of known issues listed in issues.
 
 ## Installation
 
+From source:
 ```bash
 git clone git@github.com:UKGovernmentBEIS/hibayes.git
 cd hibayes
@@ -40,6 +41,19 @@ uv venv .venv
 uv sync # if you want to exactly match dependencies
 uv pip install -e .
 ```
+
+or simply without git:
+
+```bash
+uv pip install git+https://github.com/UKGovernmentBEIS/hibayes.git
+```
+
+If you want to use a gpu for model fitting, you will need to install the optional gpu dependencies:
+
+```bash
+uv pip install "git+https://github.com/UKGovernmentBEIS/hibayes.git[gpu]"
+```
+
 
 if you would like to contribute please install the dev dependencies:
 
