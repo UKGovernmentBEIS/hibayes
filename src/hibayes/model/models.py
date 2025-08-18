@@ -21,19 +21,34 @@ def check_features(features: Features, required: List[str]) -> None:
 
 
 @model
-def two_level_group_binomial() -> Model:
-    """Two-level group binomial model. For this simple example there are no customisable arguments."""
+def two_level_group_binomial(
+    prior_mu_overall_loc: float = 0.0,
+    prior_mu_overall_scale: float = 1.0,
+    prior_sigma_overall_scale: float = 0.5,
+    prior_mu_group_scale: float = 0.5,
+    prior_sigma_group_scale: float = 0.1,
+) -> Model:
+    """
+    Two-level group binomial model with customisable priors.
+
+    Args:
+        prior_mu_overall_loc: Mean of the normal prior for overall mu
+        prior_mu_overall_scale: Scale of the normal prior for overall mu
+        prior_sigma_overall_scale: Scale of the half-normal prior for overall sigma
+        prior_mu_group_scale: Scale of the normal prior for group mu (centered on overall_mean)
+        prior_sigma_group_scale: Scale of the half-normal prior for group sigma
+    """
 
     def model(features: Features) -> None:
         check_features(features, ["obs", "num_group", "group_index", "n_total"])
 
         mu_overall = numpyro.sample(
             "mu_overall",
-            dist.Normal(0, 1),
+            dist.Normal(prior_mu_overall_loc, prior_mu_overall_scale),
         )
         sigma_overall = numpyro.sample(
             "sigma_overall",
-            dist.HalfNormal(0.5),
+            dist.HalfNormal(prior_sigma_overall_scale),
         )
         z_overall = numpyro.sample("z_overall", dist.Normal(0, 1))
         overall_mean = mu_overall + sigma_overall * z_overall
@@ -41,11 +56,11 @@ def two_level_group_binomial() -> Model:
 
         mu_group = numpyro.sample(
             "mu_group",
-            dist.Normal(overall_mean, 0.5),
+            dist.Normal(overall_mean, prior_mu_group_scale),
         )
         sigma_group = numpyro.sample(
             "sigma_group",
-            dist.HalfNormal(0.1),  # notice expect lower variance
+            dist.HalfNormal(prior_sigma_group_scale),
         )
         z_group = numpyro.sample(
             "z_group", dist.Normal(0, 1).expand([features["num_group"]])
