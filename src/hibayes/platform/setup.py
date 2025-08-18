@@ -39,9 +39,6 @@ def configure_computation_platform(
     display.update_logs(f"Configuring {platform_config.device_type.upper()} platform")
 
     try:
-        display.update_logs(
-            f"Configuring {platform_config.device_type.upper()} platform"
-        )
         if platform_config.device_type == "gpu":
             # Configure GPU memory before any JAX operations
 
