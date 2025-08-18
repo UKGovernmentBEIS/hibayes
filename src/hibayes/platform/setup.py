@@ -48,14 +48,12 @@ def configure_computation_platform(
 
             _configure_gpu_memory(platform_config, display)
 
-            display.update_logs(
-                f"Using {len(platform_config.devices)} GPU(s) for computation"
-            )
+            display.update_logs(f"Using {len(jax.devices())} GPU(s) for computation")
 
             # For multi-GPU setups, JAX automatically distributes computation
             # across all available GPUs. For single GPU, we can set it as default
-            if len(platform_config.devices) == 1:
-                jax.config.update("jax_default_device", platform_config.devices[0])
+            if len(jax.devices()) == 1:
+                jax.config.update("jax_default_device", jax.devices()[0])
                 display.update_logs("Single GPU setup - set as default device")
             else:
                 display.update_logs(
