@@ -373,7 +373,7 @@ def posterior_predictive_plot(
                 state.model,
                 posterior_samples=_posterior_samples_as_dict(state.inference_data),
                 num_samples=num_samples,
-                parallel=state.platform_config.chain_method != "sequential",
+                parallel=False,  # vectorised in mcmc actually samples sequentially as each sample is dependent on the previous one. In Predictive, this is not the case. This can introduce significnat memory requirements. Disabling now to avoid OOM errors.
                 **predictive_kwargs,
             )
             pp_samples = predictive(
