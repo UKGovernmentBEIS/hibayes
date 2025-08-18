@@ -27,7 +27,7 @@ LINK_FUNCTION_MAP: Dict[str, Callable[[np.ndarray], np.ndarray]] = {
 @dataclass(frozen=True, slots=True)
 class FitConfig:
     method: Method = "NUTS"
-    samples: int = 4000
+    samples: int = 2000
     warmup: int = 500
     chains: int = 4
     seed: int = 0
