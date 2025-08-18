@@ -38,7 +38,7 @@ def fit(
         num_warmup=cfg.warmup,
         num_chains=cfg.chains,
         progress_bar=cfg.progress_bar,
-        chain_method=cfg.chain_method,
+        chain_method=model_analysis_state.platform_config.chain_method,
     )
 
     rng_key = jax.random.PRNGKey(cfg.seed)

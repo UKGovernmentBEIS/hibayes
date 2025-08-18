@@ -1,4 +1,5 @@
 import contextlib
+import datetime
 import logging
 import time
 from functools import partial
@@ -32,7 +33,12 @@ from .plot import plotextMixin
 class ModellingDisplay:
     """Rich display for fitting and testing statistical models."""
 
-    def __init__(self, logger: logging.Logger | None = None, max_logs: int = 5):
+    def __init__(
+        self,
+        logger: logging.Logger | None = None,
+        max_logs: int = 5,
+        initial_stats: dict | None = None,
+    ):
         self.layout = Layout()
         self.layout.split_column(
             Layout(name="logs", size=8),
@@ -44,6 +50,7 @@ class ModellingDisplay:
 
         # Set up logs panel
         self.logs = []
+        self.all_logs = []  # Store all logs for saving
         self.max_logs = max_logs
         self.layout["logs"].update(
             Panel("", title="Logger output", border_style="dim white")
@@ -95,7 +102,7 @@ class ModellingDisplay:
 
         self.layout["body"].update(self.body_layout)
 
-        self.stats = {
+        default_stats = {
             # Processing stats
             "Samples found": 0,
             "Samples processed": 0,
@@ -112,6 +119,16 @@ class ModellingDisplay:
             "Errors encountered": 0,
         }
 
+        # Track whether we're loading from a saved state
+        self._loaded_from_state = False
+        if initial_stats:
+            # Merge initial_stats into default_stats, preserving any additional keys
+            default_stats.update(initial_stats)
+            if "Processing speed" in initial_stats:
+                self._loaded_from_state = True
+
+        self.stats = default_stats
+
         self.start_time = time.time()
         self.live = None
         self._task_ids = {}
@@ -126,8 +143,12 @@ class ModellingDisplay:
 
     def update_logs(self, log_entry):
         """Callback for LogCaptureHandler to update logs panel."""
-        self.logs.append(log_entry)
-        # Keep only the last N logs
+        timestamped_entry = (
+            f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {log_entry}"
+        )
+        self.logs.append(timestamped_entry)
+        self.all_logs.append(timestamped_entry)
+        # Keep only the last N logs for display
         self.logs = self.logs[-self.max_logs :]
         # Update the logs panel
         self.layout["logs"].update(
@@ -211,11 +232,15 @@ class ModellingDisplay:
             return
 
         # Calculate processing speed if loading data
-        if not self.modelling:
-            elapsed = time.time() - self.start_time
-            if elapsed > 0:
-                samples_per_sec = self.stats["Samples processed"] / elapsed
-                self.stats["Processing speed"] = f"{samples_per_sec:.1f} samples/sec"
+        # Only calculate if we're actively processing (not loading from a saved state)
+        if not self.modelling and self.stats["Samples processed"] > 0:
+            if not (hasattr(self, "_loaded_from_state") and self._loaded_from_state):
+                elapsed = time.time() - self.start_time
+                if elapsed > 0:
+                    samples_per_sec = self.stats["Samples processed"] / elapsed
+                    self.stats["Processing speed"] = (
+                        f"{samples_per_sec:.1f} samples/sec"
+                    )
 
         # Rebuild the table
         self.stats_table = Table(box=box.SIMPLE)
@@ -336,6 +361,21 @@ class ModellingDisplay:
             box=box.ROUNDED,
         )
         self.layout["checks"].update(check_panel)
+
+    def get_all_logs(self) -> List[str]:
+        """Get all captured logs."""
+        return self.all_logs.copy()
+
+    def get_stats_for_persistence(self) -> Dict[str, Any]:
+        """Get display statistics in a serialisable format for persistence."""
+        # Convert sets to lists for JSON serialization
+        stats_copy = {}
+        for key, value in self.stats.items():
+            if isinstance(value, set):
+                stats_copy[key] = list(value)
+            else:
+                stats_copy[key] = value
+        return stats_copy
 
 
 # Create a custom progress tracking integration for NumPyro's MCMC

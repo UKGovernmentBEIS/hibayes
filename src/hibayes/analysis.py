@@ -1,4 +1,6 @@
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 import yaml
@@ -30,7 +32,7 @@ class AnalysisConfig:
     models: ModelsToRunConfig
     checkers: CheckerConfig
     communicate: CommunicateConfig
-    platform: PlatformConfig = field(default_factory=PlatformConfig)
+    platform: PlatformConfig
 
     @classmethod
     def from_yaml(cls, path: str) -> "AnalysisConfig":
@@ -52,7 +54,7 @@ class AnalysisConfig:
                 config["data_process"] if "data_process" in config else {}
             ),
             models=ModelsToRunConfig.from_dict(
-                config["model"] if "model" in config else {}
+                config["model"] if "model" in config else {},
             ),
             checkers=CheckerConfig.from_dict(
                 config["check"] if "check" in config else {}
@@ -69,7 +71,7 @@ class AnalysisConfig:
 def load_data(
     config: DataLoaderConfig,
     display: ModellingDisplay,
-) -> pd.DataFrame:
+) -> AnalysisState:
     df = get_sample_df(
         display=display,
         config=config,
@@ -77,17 +79,37 @@ def load_data(
     if display.is_live:
         display.stop()
 
-    return df
+    # Create AnalysisState with the loaded data
+    analysis_state = AnalysisState(data=df)
+
+    # Capture logs and display stats from the loading process
+    analysis_state.logs = display.get_all_logs()
+    analysis_state.display_stats = display.get_stats_for_persistence()
+
+    return analysis_state
 
 
 def process_data(
-    data: pd.DataFrame,
     config: ProcessConfig,
     display: ModellingDisplay,
+    data: Optional[pd.DataFrame] = None,
+    analysis_state: Optional[AnalysisState | str | Path] = None,
 ) -> AnalysisState:
+    # Handle input options
+    if data is not None and analysis_state is not None:
+        raise ValueError("Provide either 'data' or 'analysis_state', not both")
+    elif data is None and analysis_state is None:
+        raise ValueError("Must provide either 'data' or 'analysis_state'")
+
+    # Create or load the analysis state
+    if data is not None:
+        analysis_state = AnalysisState(data=data)
+    elif isinstance(analysis_state, (str, Path)):
+        analysis_state = AnalysisState.load(Path(analysis_state))
+    # else: use the provided AnalysisState object as-is
+
     if not display.is_live:
         display.start()
-    analysis_state = AnalysisState(data=data)
 
     display.update_header("Running data processing methods")
     display.update_logs(
@@ -100,6 +122,11 @@ def process_data(
 
     if display.is_live:
         display.stop()
+
+    # Capture all logs from display and add to analysis state
+    analysis_state.logs = display.get_all_logs()
+    # Capture display stats for persistence
+    analysis_state.display_stats = display.get_stats_for_persistence()
     return analysis_state
 
 
@@ -107,6 +134,7 @@ def model(
     analysis_state: AnalysisState,
     models_to_run_config: ModelsToRunConfig,
     checker_config: CheckerConfig,
+    platform_config: PlatformConfig,
     display: ModellingDisplay,
 ):
     display.setupt_for_modelling()
@@ -119,6 +147,7 @@ def model(
             model_analysis_state = ModelAnalysisState(
                 model=model,
                 model_config=model_config,
+                platform_config=platform_config,
                 features=analysis_state.features,
                 coords=analysis_state.coords,
                 dims=analysis_state.dims,
@@ -148,6 +177,10 @@ def model(
     if display.is_live:
         display.stop()
 
+    # Update logs from display
+    analysis_state.logs = display.get_all_logs()
+    # Capture display stats for persistence
+    analysis_state.display_stats = display.get_stats_for_persistence()
     return analysis_state
 
 
@@ -214,6 +247,11 @@ def communicate(
 
     if display.is_live:
         display.stop()
+
+    # Update logs from display
+    analysis_state.logs = display.get_all_logs()
+    # Capture display stats for persistence
+    analysis_state.display_stats = display.get_stats_for_persistence()
     return analysis_state
 
 

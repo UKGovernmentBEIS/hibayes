@@ -14,7 +14,6 @@ from .utils import cloglog_to_prob, link_to_key, logit_to_prob, probit_to_prob
 logger = init_logger()
 
 Method = Literal["NUTS", "HMC"]  # MCMC sampler type
-ChainMethod = Literal["parallel", "sequential", "vectorised"]
 
 LINK_FUNCTION_MAP: Dict[str, Callable[[np.ndarray], np.ndarray]] = {
     "identity": lambda x: x,
@@ -33,8 +32,6 @@ class FitConfig:
     chains: int = 4
     seed: int = 0
     progress_bar: bool = True
-    parallel: bool = True
-    chain_method: ChainMethod = "parallel"
     target_accept: float = 0.8
     max_tree_depth: int = 10
 
@@ -47,9 +44,9 @@ class FitConfig:
 class ModelConfig:
     fit: FitConfig = field(default_factory=FitConfig)
 
-    main_effect_params: Optional[
-        List[str]
-    ] = None  # a list of the main effect parameters in the model which you would like to plot. If None then all parameters are treated as main.
+    main_effect_params: Optional[List[str]] = (
+        None  # a list of the main effect parameters in the model which you would like to plot. If None then all parameters are treated as main.
+    )
     tag: Optional[str] = None  # a tag for the model config - e.g. version 1
     link_function: Callable[[np.ndarray], np.ndarray] = field(
         default=logit_to_prob  # link function for the model
@@ -114,13 +111,15 @@ class ModelConfig:
                 f"Got {type(link_arg)} instead."
             )
 
-        return cls(
+        model_config = cls(
             fit=fit_config,
             main_effect_params=structured_args.get("main_effect_params", None),
             tag=structured_args.get("tag", None),
             link_function=link_function,
             extra_kwargs=extra_kwargs,
         )
+
+        return model_config
 
     def save(self, path: Path) -> None:
         """Save the model configuration as a json file."""
@@ -188,10 +187,11 @@ class ModelsToRunConfig:
                     )
                 else:
                     model_name = model
+                    model_config = ModelConfig()
                     enabled_models.append(
                         (
                             registry_get(RegistryInfo(type="model", name=model_name))(),
-                            ModelConfig(),
+                            model_config,
                         )
                     )
         elif isinstance(model_section, dict):
