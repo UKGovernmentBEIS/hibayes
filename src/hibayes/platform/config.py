@@ -10,14 +10,14 @@ from ..utils import init_logger
 
 logger = init_logger()
 
-ChainMethod = Literal["parallel", "sequential", "vectorised"]
+ChainMethod = Literal["parallel", "sequential", "vectorized"]
 
 
 @dataclass
 class PlatformConfig:
     device_type: str = "cpu"  # Device type (cpu, gpu, tpu)
     num_devices: int | None = None  # Number of devices to use (None = auto-detect)
-    devices: list[str] = None  # List of device names (e.g., ["gpu:0", "gpu:1"])
+    devices: list[str] | None = None  # List of device names (e.g., ["gpu:0", "gpu:1"])
     gpu_memory_fraction: float = 0.9  # Fraction of GPU memory to use (0.1-1.0)
     chain_method: ChainMethod = "parallel"  # Method for running chains
 
@@ -86,4 +86,6 @@ class PlatformConfig:
             device_type=config.get("device_type", "cpu"),
             num_devices=config.get("num_devices", None),
             gpu_memory_fraction=config.get("gpu_memory_fraction", 0.9),
+            devices=config.get("devices", None),
+            chain_method=config.get("chain_method", "parallel"),
         )
