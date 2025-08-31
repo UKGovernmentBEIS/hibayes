@@ -426,18 +426,30 @@ class AnalysisState:
             raise ValueError("Communicate is not set.")
 
         return self._communicate[item_name]
+    
+    def _get_unique_name(self, base_name: str) -> str:
+        """Get a unique name by adding a counter if the base name already exists."""
+        if self._communicate is None or base_name not in self._communicate:
+            return base_name
+        
+        counter = 1
+        while f"{base_name}_{counter}" in self._communicate:
+            counter += 1
+        return f"{base_name}_{counter}"
 
     def add_plot(self, plot: plt.Figure, plot_name: str) -> None:
         """Add a plot to the communicate."""
         if self._communicate is None:
             self._communicate = {}
-        self._communicate[plot_name] = plot
+        unique_name = self._get_unique_name(plot_name)
+        self._communicate[unique_name] = plot
 
     def add_table(self, table: pd.DataFrame, table_name: str) -> None:
         """Add a table to the communicate."""
         if self._communicate is None:
             self._communicate = {}
-        self._communicate[table_name] = table
+        unique_name = self._get_unique_name(table_name)
+        self._communicate[unique_name] = table
 
     @property
     def logs(self) -> List[str]:
