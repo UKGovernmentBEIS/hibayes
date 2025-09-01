@@ -1,0 +1,44 @@
+stages:
+  load:
+    cmd: hibayes-load --config files/config.yaml --out .output/load/
+    deps:
+    - ../../../src/hibayes/load/
+    - ../files/custom_extractor.py
+    outs:
+    - .output/load/
+    params:
+      - files/config.yaml:
+        - data_loader
+
+  process:
+    cmd: hibayes-process --config files/config.yaml --analysis-state .output/load/ --out .output/process/
+    deps:
+    - ../../../src/hibayes/process/
+    - .output/load/
+    outs:
+    - .output/process/
+    params:
+      - files/config.yaml:
+        - data_process
+  model:
+    cmd: hibayes-model --config files/config.yaml --analysis-state .output/process/ --out .output/model/
+    deps:
+    - ../../../src/hibayes/
+    - .output/process/
+    outs:
+    - .output/model/
+    params:
+      - files/config.yaml:
+        - model
+        - check
+        - platform
+  communicate:
+    cmd: hibayes-comm --config files/config.yaml --analysis-state .output/model/ --out .output/communicate/
+    deps:
+    - ../../../src/hibayes/
+    - .output/model/
+    outs:
+    - .output/communicate/
+    params:
+      - files/config.yaml:
+        - communicate
