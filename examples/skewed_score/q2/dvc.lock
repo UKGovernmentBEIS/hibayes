@@ -1,12 +1,13 @@
 schema: '2.0'
 stages:
   process:
-    cmd: hibayes-process --config files/config.yaml --data data/data.csv --out .output/process/
+    cmd: hibayes-process --config files/config.yaml --data data/data.csv --out 
+      .output/process/
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: 10e11e518e7f18de789149e3eb33991d.dir
-      size: 450084
+      md5: a645ad8fe2e3da6baa3510f92c66422b.dir
+      size: 476765
       nfiles: 106
     - path: data/data.csv
       hash: md5
@@ -27,23 +28,23 @@ stages:
     outs:
     - path: .output/process/
       hash: md5
-      md5: 66a84bca00291bbc8b0512450ea960e9.dir
-      size: 10155
-      nfiles: 4
+      md5: d49859afd58243db18f0f60fc785a7d8.dir
+      size: 11300
+      nfiles: 6
   model:
-    cmd: hibayes-model --config files/config.yaml --analysis-state .output/process/
-      --out .output/model/
+    cmd: hibayes-model --config files/config.yaml --analysis-state 
+      .output/process/ --out .output/model/
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: 10e11e518e7f18de789149e3eb33991d.dir
-      size: 450084
+      md5: e4dd867901c0019fa10400aee01d4197.dir
+      size: 476940
       nfiles: 106
     - path: .output/process/
       hash: md5
-      md5: 66a84bca00291bbc8b0512450ea960e9.dir
-      size: 10155
-      nfiles: 4
+      md5: d49859afd58243db18f0f60fc785a7d8.dir
+      size: 11300
+      nfiles: 6
     params:
       files/config.yaml:
         check:
@@ -86,12 +87,12 @@ stages:
     outs:
     - path: .output/model/
       hash: md5
-      md5: 5eefcd1107a210a11b40f20ac11dd1a9.dir
-      size: 17272078
-      nfiles: 24
+      md5: 9cdcf50096345b352675f0b66f313449.dir
+      size: 17277505
+      nfiles: 28
   communicate:
-    cmd: hibayes-comm --config files/config.yaml --analysis_state .output/model/ --out
-      .output/communicate/
+    cmd: hibayes-comm --config files/config.yaml --analysis_state .output/model/
+      --out .output/communicate/
     deps:
     - path: ../../../src/hibayes/
       hash: md5

@@ -23,7 +23,7 @@ stages:
         - check
 
   communicate:
-    cmd: hibayes-comm --config files/config.yaml --analysis_state .output/model/ --out .output/communicate/
+    cmd: hibayes-comm --config files/config.yaml --analysis-state .output/model/ --out .output/communicate/
     deps:
     - ../../../src/hibayes/
     - .output/model/
