@@ -226,6 +226,8 @@ def model_comparison_plot(
             *args,
             **kwargs,
         )
+        # remove ic from kwargs
+        kwargs.pop("ic", None)
 
         az.plot_compare(comparisons, *args, **kwargs)
         fig = plt.gcf()

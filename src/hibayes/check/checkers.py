@@ -7,6 +7,8 @@ import numpy as np
 import xarray as xr
 from numpyro.infer import Predictive
 
+from hibayes.ui import display
+
 from ..analysis_state import ModelAnalysisState
 from ..ui import ModellingDisplay
 from ._check import Checker, CheckerResult, checker
@@ -84,6 +86,8 @@ def prior_predictive_plot(
         state: ModelAnalysisState, display: ModellingDisplay | None = None
     ) -> Tuple[ModelAnalysisState, CheckerResult]:
         # make sure the prior predictive group exists
+
+        plot_kind = kind
         if state.inference_data.get("prior_predictive") is None:
             state, res = prior_predictive_check(predictive_kwargs=predictive_kwargs)(
                 state, display
@@ -164,31 +168,75 @@ def prior_predictive_plot(
 
             fig, ax = plt.subplots(figsize=figsize)
 
-            az.plot_ppc(
-                state.inference_data,
-                ax=ax,
-                group="prior",
-                var_names=[var],
-                kind=kind,
-                figsize=figsize,
-                **plot_kwargs,
-            )
+            try:
+                az.plot_ppc(
+                    state.inference_data,
+                    ax=ax,
+                    group="prior",
+                    var_names=[var],
+                    kind=plot_kind,
+                    figsize=figsize,
+                    **plot_kwargs,
+                )
+            except ValueError as e:
+                if ("Too many bins for data range" in str(e) or 
+                    "inhomogeneous shape" in str(e) or
+                    "setting an array element with a sequence" in str(e)):
+                    # Fall back to matplotlib histogram when KDE fails
+                    display.logger.warning(
+                        f"KDE plot failed for '{var}' (likely due to data shape issues or limited data range). "
+                        "Using histogram instead."
+                    )
+
+                    # Extract prior predictive samples
+                    pp_data = state.inference_data.prior_predictive[var].values
+
+                    # Flatten the data if it has multiple dimensions
+                    if pp_data.ndim > 1:
+                        pp_data = pp_data.flatten()
+
+                    # Remove NaN values if any
+                    pp_data = pp_data[~np.isnan(pp_data)]
+
+                    # Create histogram
+                    counts, bins, _ = ax.hist(
+                        pp_data,
+                        bins="auto",
+                        alpha=0.7,
+                        density=True,
+                        edgecolor="black",
+                        linewidth=0.5,
+                    )
+                    ax.set_xlabel(var)
+                    ax.set_ylabel("Density")
+                    ax.set_title(f"Prior Predictive Distribution: {var}")
+
+                    # Update plot_kind for consistency
+                    plot_kind = "histogram"
+                else:
+                    raise
 
             if display and interactive:
-                if kind == "kde":
+                if plot_kind == "kde":
                     # Extract data for display
                     pp_data = state.inference_data.prior_predictive[
                         var
                     ].values.flatten()
                     x, y = az.kde(pp_data)
                     display.add_plot({"x": x, "y": y}, title=f"Prior check – {var}")
+                elif plot_kind == "histogram":
+                    # Use the histogram data from the plot
+                    # Create x values as bin centers
+                    x = (bins[:-1] + bins[1:]) / 2
+                    display.add_plot(
+                        {"x": x, "y": counts}, title=f"Prior check – {var} (histogram)"
+                    )
 
                 if not display.prompt_user(
-                    f"Is the prior predictive distribution for '{var}' acceptable?"
+                    f"Is the prior predictive distribution for '{np.var}' acceptable?"
                 ):
                     user_ok = False
                     break
-
             # Store diagnostic
             state.add_diagnostic(f"{var}_prior_predictive", fig)
 
