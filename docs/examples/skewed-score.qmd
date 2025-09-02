@@ -1,0 +1,111 @@
+---
+title: "Skewed Score Analysis"
+description: "Handling ordinal data with ordered logistic models"
+---
+
+## Overview
+
+These examples demonstrate how to analyze ordinal evaluation data with skewed distributions using ordered logistic regression models. Located in `examples/skewed_score/`, they showcase custom model implementations and specialized visualisations for ordinal outcomes.
+
+
+## Question 1: Grader Effects Analysis
+
+Analyses how different graders affect score distributions on a 0-10 rating scale.
+
+### Purpose
+- Estimate grader-specific effects
+- Account for ordinal score structure
+- Visualise cutpoint distributions
+- Assess grader consistency
+
+### Configuration
+
+```yaml
+data_process:
+  processors:
+    - extract_observed_feature: {feature_name: score}  # 0-10 rating
+    - extract_predictors:
+        predictor_names: [grader]
+        effect_coding_for_main_effects: true
+```
+
+### Custom Model Implementation
+
+The ordered logistic model is implemented as a custom component:
+
+```yaml
+model:
+  path: ../custom_model.py
+  models:
+    - name: ordered_logistic_model
+      config:
+        tag: version_1
+        main_effects: ["grader"]
+        num_classes: 11  # for 0-10 scale
+        effect_coding_for_main_effects: true
+        fit:
+          samples: 2000
+          chains: 4
+```
+
+### Model Structure
+
+```python
+@model
+def ordered_logistic_model(
+    main_effects: Optional[List[str]] = None,
+    interactions: Optional[List[tuple]] = None,
+    num_classes: int = 11,
+    effect_coding_for_main_effects: bool = True,
+    prior_intercept_loc: float = 0.0,
+    prior_intercept_scale: float = 1.0,
+    prior_main_effects_loc: float = 0.0,
+    prior_main_effects_scale: float = 1.0,
+    prior_interaction_loc: float = 0.0,
+    prior_interaction_scale: float = 1.0,
+    prior_first_cutpoint_loc: float = -4.0,
+    prior_first_cutpoint_scale: float = 0.2,
+    prior_cutpoint_diffs_loc: float = -0.5,
+    prior_cutpoint_diffs_scale: float = 0.3,
+    min_cutpoint_spacing: float = 0.3,
+) -> Model:
+    """
+    Ordered logistic regression model with configurable main effects and interactions.
+
+    Args:
+        main_effects: List of categorical variables to include as main effects
+        interactions: List of tuples specifying interactions (e.g., [('var1', 'var2')])
+        num_classes: Number of ordered categories in the outcome
+        effect_coding_for_main_effects: Whether to use effect coding (sum-to-zero constraint)
+        prior_intercept_loc: Mean of the normal prior for intercept
+        prior_intercept_scale: Scale of the normal prior for intercept
+        prior_main_effects_loc: Mean of the normal prior for main effects
+        prior_main_effects_scale: Scale of the normal prior for main effects
+        prior_interaction_loc: Mean of the normal prior for interactions
+        prior_interaction_scale: Scale of the normal prior for interactions
+        prior_first_cutpoint_loc: Mean of the normal prior for first cutpoint
+        prior_first_cutpoint_scale: Scale of the normal prior for first cutpoint
+        prior_cutpoint_diffs_loc: Mean of the log-normal prior for cutpoint differences
+        prior_cutpoint_diffs_scale: Scale of the log-normal prior for cutpoint differences
+        min_cutpoint_spacing: Minimum spacing between cutpoints to ensure identifiability
+    """
+
+    def model(features: Features) -> None:
+```
+
+## Visualisations
+
+A mixture of custom and default communicators are used to interpret the data
+
+```yaml
+communicate:
+  path: ../custom_communicators.py
+  communicators:
+    - cutpoint_plot
+    - ordered_residuals_plot
+    - category_frequency_plot
+    - forest_plot: {vars: ["grader_effects"], combined: true, vertical_line: 0}
+```
+
+
+## Questions 2 & 3: Extended Analyses

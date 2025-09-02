@@ -1,0 +1,96 @@
+---
+title: "The HiBayES Workflow"
+description: "Understanding the pipeline architecture and execution flow"
+---
+
+## Overview
+
+HiBayES follows a structured pipeline approach that ensures reproducibility, modularity, and extensibility. The workflow consists of five interconnected stages, each with specific responsibilities and outputs. Each stage relies on a user defined config file.
+
+## Stage 1: Loading Data
+
+The loading stage extracts structured data from Inspect AI evaluation logs.
+
+### Purpose
+- Parse JSON/eval log files
+- Extract relevant metadata and scores
+- Combine multiple logs into a unified dataset
+
+### Key Components
+
+```python
+from hibayes.load import DataLoaderConfig
+from hibayes.ui import ModellingDisplay
+
+from hibayes.analysis import load_data
+
+config = DataLoaderConfig()  # <1>
+display = ModellingDisplay()
+
+analysis_state = load_data(config, display) # <2>
+```
+1. **Default Extractors** here we are using the default extractors which extract basic information from the inspect logs. You can pass custom extractors or select from the prebuilt extracts by passing their names as strings here.
+
+2. **AnalysisState** This object flows through the whole workflow. Here the extracted data is stored, all model fits and configs along with the analysis results.
+
+### Output
+- Pandas DataFrame with evaluation results
+- Each row represents one evaluation sample
+- Columns contain scores, metadata, and identifiers
+
+::: {.callout-note}
+## Data Format
+HiBayES expects Inspect logs in JSON or .eval format with standard fields like `eval`, `score`, `metadata`, etc.
+:::
+
+## Stage 2: Processing Data
+
+The processing stage transforms raw data into model-ready format. It creates a new dataframe, processed_data, leaving the original extracted data unchanged. It add features, coords and dims to the analysisstate.
+
+### Purpose
+- Clean and filter data
+- Extract observed variables and predictors as jax arrays
+- Create hierarchical data structures
+- Handle missing values
+- etc
+
+### Processing Pipeline
+
+```python
+from hibayes.process import ProcessConfig
+from hibayes.analysis import process_data
+
+config = ProcessConfig().from_dict(
+    {"processors": [{"drop_rows_with_missing_features": ["model", "score", "task"]},
+    "extract_observed_feature",
+    "extract_features"
+    ]}
+) # <1>
+
+analysis_state = process_data(config, display, analysis_state)
+```
+1. **Processors** here we are specifying which of the default processors we want to apply. Note the custom args for the columns to check for missing values! Want to add a custom Processor? more on that later.
+
+
+## Stage 3: Modelling
+
+The modelling stage fits Bayesian models to the processed data.
+
+### Purpose
+- Define probabilistic models
+- Pick one from our default library or define one yourself
+- Fit the model!
+
+```python
+from hibayes.model import ProcessConfig
+from hibayes.analysis import process_data
+
+config = ProcessConfig().from_dict(
+    {"processors": [{"drop_rows_with_missing_features": ["model", "score", "task"]},
+    "extract_observed_feature",
+    "extract_features"
+    ]}
+) # <1>
+
+analysis_state = process_data(config, display, analysis_state)
+```

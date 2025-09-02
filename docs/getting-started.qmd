@@ -1,0 +1,257 @@
+---
+title: "Getting Started"
+description: "Installation, setup, and your first HiBayES analysis"
+---
+
+## Overview
+
+HiBayES is a Python package for analyzing data from [Inspect](https://github.com/UKGovernmentBEIS/inspect_ai) logs using statistical modeling techniques presented in [HiBayES: A Hierarchical Bayesian Modeling Framework for AI Evaluation Statistics](https://arxiv.org/abs/2505.05602).
+
+::: {.callout-warning}
+## Work In Progress
+This package is currently in development. Functionality will change and bugs are expected. **We very much value your feedback and contributions**. Please open an issue or pull request if you have any suggestions or find any bugs.
+:::
+
+## Installation
+
+### From Source
+
+Using pip:
+```bash
+git clone git@github.com:UKGovernmentBEIS/hibayes.git
+cd hibayes
+pip install -e .
+```
+
+Using uv (recommended):
+```bash
+git clone git@github.com:UKGovernmentBEIS/hibayes.git
+cd hibayes
+uv venv .venv
+uv sync  # if you want to exactly match dependencies
+uv pip install -e .
+```
+
+Or install directly without cloning:
+```bash
+uv pip install git+https://github.com/UKGovernmentBEIS/hibayes.git
+```
+
+### GPU Support
+
+For GPU acceleration during model fitting:
+```bash
+uv pip install "git+https://github.com/UKGovernmentBEIS/hibayes.git[gpu]"
+```
+
+### Development Setup
+
+For contributors:
+```bash
+uv pip install -e .[dev]
+```
+
+Set up pre-commit hooks:
+```bash
+uv run pre-commit install
+```
+
+Run pre-commit manually:
+```bash
+uv run pre-commit run --all-files
+```
+
+## Quick Start
+
+### Running Examples
+
+The quickest way to understand HiBayES is to run an example:
+
+```bash
+cd examples/hibayes-usecases/usecase1
+uv run dvc repro
+```
+
+Or without DVC:
+```bash
+cd examples/hibayes-usecases/usecase1
+uv run hibayes-full --config files/config.yaml --out .output
+```
+
+### Interactive Model Checking
+
+HiBayES includes interactive checks to ensure model appropriateness. For example, prior predictive checks:
+
+![Prior predictive check interface](figs/prior-pred.png){width=500}
+
+Results are saved in the output directory as an `analysis_state` object containing all analysis results.
+
+## Basic Usage
+
+### Command Line Interface
+
+HiBayES provides modular commands for each stage of analysis:
+
+#### Loading Data
+```bash
+uv run hibayes-load --config <path-to-config.yaml> \
+    --out <path-to-store-processed-data>
+```
+
+#### Processing Data
+```bash
+uv run hibayes-process --config <path-to-config.yaml> \
+    --analysis-state <path-to-analysis-state> \
+    --out <path-to-processed-results>
+```
+
+#### Fitting Models
+```bash
+uv run hibayes-model --config <path-to-config.yaml> \
+    --analysis-state <path-to-analysis-state> \
+    --out <path-to-model-fit-results>
+```
+
+#### Checking Models
+```bash
+uv run hibayes-check --config <path-to-config.yaml> \
+    --analysis-state <path-to-analysis-state> \
+    --out <path-to-check-results>
+```
+
+#### Communicating Results
+```bash
+uv run hibayes-communicate --config <path-to-config.yaml> \
+    --analysis-state <path-to-analysis-state> \
+    --out <path-to-communicate-results>
+```
+
+#### Full Pipeline
+```bash
+uv run hibayes-full --config <path-to-config.yaml> \
+    --out <path-to-results>
+```
+
+## Configuration Basics
+
+HiBayES uses YAML configuration files to define the analysis pipeline:
+
+```yaml
+data_loader:
+  paths:
+    files_to_process:
+      - path/to/log.eval
+      - path/to/logs/directory/
+  extractors:
+    enabled:
+      - base
+
+data_process:
+  processors:
+    - extract_observed_feature: {feature_name: score}
+    - extract_predictors: {predictor_names: [model]}
+
+model:
+  models:
+    - name: binomial_model
+      config:
+        main_effects: [model]
+
+check:
+  checkers:
+    - prior_predictive_plot
+    - r_hat
+    - divergences
+
+communicate:
+  communicators:
+    - forest_plot
+    - summary_table
+```
+
+## DVC Integration
+
+HiBayES uses [DVC](https://dvc.org/) for reproducible analysis pipelines.
+
+### Setting Up DVC
+
+For a new experiment:
+```bash
+mkdir experiments/my_experiment
+cd experiments/my_experiment
+git init
+uv run dvc init --subdir
+```
+
+### Creating a Pipeline
+
+Define stages in `dvc.yaml`:
+```yaml
+stages:
+  load:
+    cmd: hibayes-load --config files/config.yaml
+    deps:
+      - files/config.yaml
+      - data/
+    outs:
+      - outputs/analysis_state_load.pkl
+
+  process:
+    cmd: hibayes-process --config files/config.yaml
+    deps:
+      - files/config.yaml
+      - outputs/analysis_state_load.pkl
+    outs:
+      - outputs/analysis_state_process.pkl
+
+  model:
+    cmd: hibayes-model --config files/config.yaml
+    deps:
+      - files/config.yaml
+      - outputs/analysis_state_process.pkl
+    outs:
+      - outputs/analysis_state_model.pkl
+```
+
+Run the pipeline:
+```bash
+dvc repro
+```
+
+## Naming Conventions
+
+HiBayES follows consistent naming patterns:
+
+### Effects and Parameters
+```python
+# Fixed and random effects
+f"{effect_name}_effects"
+# Examples: age_effects, model_effects
+
+# Interaction terms
+f"{effect1}_{effect2}_interaction"
+# Examples: age_model_interaction
+```
+
+### Data Structure References
+```python
+# Index mappings
+f"{feature}_index"
+# Examples: model_index, task_index
+
+# Count variables
+f"num_{feature}"
+# Examples: num_models, num_tasks
+```
+
+## Next Steps
+
+- Explore the [Workflow](workflow.qmd) guide for detailed pipeline understanding
+- Check out [Examples](examples/index.qmd) for real-world use cases
+
+::: {.callout-tip}
+## Getting Help
+- Open an issue on [GitHub](https://github.com/UKGovernmentBEIS/hibayes/issues)
+- Check existing issues for known problems
+- Contribute improvements via pull requests
+:::

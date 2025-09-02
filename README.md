@@ -42,7 +42,7 @@ uv sync # if you want to exactly match dependencies
 uv pip install -e .
 ```
 
-or simply without git:
+or simply without git clone:
 
 ```bash
 uv pip install git+https://github.com/UKGovernmentBEIS/hibayes.git

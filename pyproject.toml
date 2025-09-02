@@ -40,6 +40,15 @@ dev = ["pytest>=7.0.0", "pytest-cov>=4.0.0", "pytest-mock>=3.10.0", "pre-commit>
 gpu = [
     "numpyro[cuda]"
 ]
+docs = [
+    "quarto-cli>=1.4.0",
+    "jupyter>=1.0.0",
+    "seaborn>=0.12.0",
+    "scipy>=1.11.0",
+    "plotly>=5.17.0",
+    "bokeh>=3.2.0",
+    "kaleido>=0.2.1"
+]
 
 [project.scripts]
 hibayes-load = "hibayes.cli.load:main"

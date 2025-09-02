@@ -1,0 +1,77 @@
+project:
+  type: website
+
+website:
+  title: "HiBayES"
+  description: "Hierarchical Bayesian Modelling Framework for AI Evaluation Statistics"
+  navbar:
+    background: light
+    search: true
+    logo: figs/aisi-logo.svg
+    left:
+      - text: "Home"
+        href: index.qmd
+      - text: "Getting Started"
+        href: getting-started.qmd
+      - text: "Examples"
+        href: examples/index.qmd
+    right:
+      - icon: github
+        href: https://github.com/UKGovernmentBEIS/hibayes
+      - icon: file-text
+        text: "Paper"
+        href: https://arxiv.org/abs/2505.05602
+
+  sidebar:
+    - id: main
+      title: "Documentation"
+      style: docked
+      contents:
+        - index.qmd
+        - getting-started.qmd
+        - section: "Core Components"
+          contents:
+            - workflow.qmd
+            - loaders.qmd
+            - processors.qmd
+            - models.qmd
+            - communicators.qmd
+        - section: "Examples"
+          contents:
+            - examples/hibayes-usecases.qmd
+            - examples/skewed-score.qmd
+
+  page-footer:
+    center:
+      - text: "© 2025 AISI"
+    left:
+      - text: "About"
+        href: https://www.aisi.gov.uk/
+    right:
+      - icon: github
+        href: https://github.com/UKGovernmentBEIS/hibayes
+
+  search:
+    location: navbar
+    type: overlay
+    keyboard-shortcut: ["f", "/", "s"]
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-overflow: wrap
+    code-copy: true
+    code-line-numbers: true
+    highlight-style: github
+    css: styles.css
+    code-annotations: select
+
+mermaid:
+  theme: default
+
+execute:
+  freeze: auto
+  echo: true
+  warning: false
