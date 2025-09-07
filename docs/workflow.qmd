@@ -47,7 +47,12 @@ analysis_state = load_data(config, display) # <2>
 
 ::: {.callout-note}
 ## Data Format
-HiBayES expects Inspect logs in JSON or .eval format with standard fields like `eval`, `score`, `metadata`, etc.
+HiBayES expects Inspect logs in .json or .eval format
+:::
+
+::: {.callout-note}
+## Default and custom extractors
+To see the defaul extractors you can select from and how to define your own extractos please see [extractors](loaders.qmd).
 :::
 
 ## Stage 2: Processing Data
@@ -113,7 +118,7 @@ models:
 
 ## Stage 4: Checking
 
-Hibayes provides a series of checks to assess the fit of each model. Checks can either pass, fail or return an NA. Checks can run either before modelling fitting e.g. prior posterior checks or after e.g. posterior predictive or rhat. Some like the the prior and posterior predictice checks requier user interaction to approve while others such as divergents can be set up to fail as user specified threholds. Here is an example check config.yaml file with the user interactivity turned off (plots are save and can be verified at a later date). For more information on available checkers, see our [checkers documentation](checkers.qmd).
+Hibayes provides a series of checks to assess the fit of each model. Checks can either pass, fail or return an NA. Checks can run either before modelling fitting e.g. prior posterior checks or after e.g. posterior predictive or rhat. Some like the the prior and posterior predictice checks requier user interaction to approve while others such as divergents can be set up to fail as user specified threholds. Here is an example check config.yaml file with the user interactivity turned off (plots are save and can be verified at a later date). For more information on available checkers and how to define your own, see our [checkers documentation](checkers.qmd).
 
 ```yaml
 checkers:
