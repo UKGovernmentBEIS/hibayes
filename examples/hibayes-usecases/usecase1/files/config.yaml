@@ -4,12 +4,10 @@ data_loader:
       - ../data/gpt-4o
 
   extractors:
+    path: ../files/custom_extractor.py
     enabled:
-      - base
-    custom:
-      path: ../files/custom_extractor.py
-      classes:
-        - Domains
+      - base_extractor  # Built-in functional extractor
+      - domains_extractor  # Custom functional extractor from the path above
 data_process:
   processors:
     - map_columns: {column_mapping: {domain: group}}

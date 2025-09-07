@@ -5,13 +5,13 @@ stages:
     deps:
     - path: ../../../src/hibayes/load/
       hash: md5
-      md5: a70f41bee21576e444ceeb5b36f91426.dir
-      size: 79084
-      nfiles: 16
+      md5: a4d9ac1926fc4092bfa96b184b7bb12e.dir
+      size: 133062
+      nfiles: 23
     - path: ../files/custom_extractor.py
       hash: md5
-      md5: dc5a7fcdca749e3122c6d60a5de3948a
-      size: 794
+      md5: c01f2809ab0c79cb0e4373fb694c304f
+      size: 1287
     params:
       files/config.yaml:
         data_loader:
@@ -19,16 +19,14 @@ stages:
             files_to_process:
             - ../data/gpt-4o
           extractors:
+            path: ../files/custom_extractor.py
             enabled:
-            - base
-            custom:
-              path: ../files/custom_extractor.py
-              classes:
-              - Domains
+            - base_extractor
+            - domains_extractor
     outs:
     - path: .output/load/
       hash: md5
-      md5: ec1fe56d0c126aef41734f1fe9498625.dir
+      md5: f339b53214bd9b3dc747a1cecc902065.dir
       size: 134717
       nfiles: 3
   process:
@@ -37,12 +35,12 @@ stages:
     deps:
     - path: ../../../src/hibayes/process/
       hash: md5
-      md5: f077beca82aaee41fca275463064399c.dir
+      md5: f4f7dd4eb8f3fa773eef04c5f1f0592a.dir
       size: 37664
       nfiles: 10
     - path: .output/load/
       hash: md5
-      md5: ec1fe56d0c126aef41734f1fe9498625.dir
+      md5: f339b53214bd9b3dc747a1cecc902065.dir
       size: 134717
       nfiles: 3
     params:
@@ -66,7 +64,7 @@ stages:
     outs:
     - path: .output/process/
       hash: md5
-      md5: 6e3f64099a3d48c51c2cfc4728f077c8.dir
+      md5: 08b4fde6823ffd889c97e4c1cbff0c7c.dir
       size: 133910
       nfiles: 6
   model:
@@ -75,12 +73,12 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: 2da8dbb518940f4eeada49944a9ba273.dir
-      size: 523606
-      nfiles: 107
+      md5: 8c8b73eaa83ca4c20c15687520e825ef.dir
+      size: 531904
+      nfiles: 108
     - path: .output/process/
       hash: md5
-      md5: 6e3f64099a3d48c51c2cfc4728f077c8.dir
+      md5: 08b4fde6823ffd889c97e4c1cbff0c7c.dir
       size: 133910
       nfiles: 6
     params:
@@ -136,8 +134,8 @@ stages:
     outs:
     - path: .output/model/
       hash: md5
-      md5: f8d98728cbf3ffa3d9f1b8911016a6c4.dir
-      size: 12352277
+      md5: 3d56e85dc1b0821829289d6fe04fd986.dir
+      size: 12322566
       nfiles: 83
   communicate:
     cmd: hibayes-comm --config files/config.yaml --analysis-state .output/model/
@@ -145,13 +143,13 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: 2da8dbb518940f4eeada49944a9ba273.dir
-      size: 523606
-      nfiles: 107
+      md5: 8c8b73eaa83ca4c20c15687520e825ef.dir
+      size: 531904
+      nfiles: 108
     - path: .output/model/
       hash: md5
-      md5: f8d98728cbf3ffa3d9f1b8911016a6c4.dir
-      size: 12352277
+      md5: 3d56e85dc1b0821829289d6fe04fd986.dir
+      size: 12322566
       nfiles: 83
     params:
       files/config.yaml:
@@ -170,6 +168,6 @@ stages:
     outs:
     - path: .output/communicate/
       hash: md5
-      md5: cac2e6c124ff68623cf72b392ca429b9.dir
-      size: 9643411
+      md5: b2f59f5308b4354dbf496f899b82ba39.dir
+      size: 9642235
       nfiles: 86

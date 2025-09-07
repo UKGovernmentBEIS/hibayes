@@ -6,9 +6,9 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: c98f5fa24d995cb9d83f5cfc1d4be6d4.dir
-      size: 491849
-      nfiles: 107
+      md5: 8990c3aadad8ab776d71ebc203fff623.dir
+      size: 532485
+      nfiles: 108
     - path: data/data.csv
       hash: md5
       md5: db4cf590eaa3a02944718713985144b6
@@ -36,7 +36,7 @@ stages:
     outs:
     - path: .output/process/
       hash: md5
-      md5: ca46baa416e82b65a03965dd52acc594.dir
+      md5: 802a1603693fb537d459665657a8295b.dir
       size: 23466
       nfiles: 6
   model:
@@ -45,12 +45,12 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: c98f5fa24d995cb9d83f5cfc1d4be6d4.dir
-      size: 491849
-      nfiles: 107
+      md5: d4800a28843bee632b0bdba8b62835f9.dir
+      size: 534095
+      nfiles: 109
     - path: .output/process/
       hash: md5
-      md5: ca46baa416e82b65a03965dd52acc594.dir
+      md5: 802a1603693fb537d459665657a8295b.dir
       size: 23466
       nfiles: 6
     params:
@@ -110,8 +110,8 @@ stages:
     outs:
     - path: .output/model/
       hash: md5
-      md5: 486cb600f054e200ca1dfc176eb64b1c.dir
-      size: 44391086
+      md5: 4921c249abd19be4f70be8907a8eb89e.dir
+      size: 43098119
       nfiles: 39
   communicate:
     cmd: hibayes-comm --config files/config.yaml --analysis-state .output/model/
@@ -119,13 +119,13 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: c98f5fa24d995cb9d83f5cfc1d4be6d4.dir
-      size: 491849
-      nfiles: 107
+      md5: d4800a28843bee632b0bdba8b62835f9.dir
+      size: 534095
+      nfiles: 109
     - path: .output/model/
       hash: md5
-      md5: 486cb600f054e200ca1dfc176eb64b1c.dir
-      size: 44391086
+      md5: 4921c249abd19be4f70be8907a8eb89e.dir
+      size: 43098119
       nfiles: 39
     params:
       files/config.yaml:
@@ -164,6 +164,6 @@ stages:
     outs:
     - path: .output/communicate/
       hash: md5
-      md5: 6f57493eddcaf610a403b10b8a7ff03a.dir
-      size: 44959081
+      md5: c6b140bcb06a572dfca722dd89674372.dir
+      size: 43684665
       nfiles: 44

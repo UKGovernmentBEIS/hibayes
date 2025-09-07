@@ -20,9 +20,6 @@ from hibayes.utils import init_logger
 
 from ..ui.display import ModellingDisplay
 from .configs.config import DataLoaderConfig
-from .extractors import (
-    MetadataExtractor,
-)
 from .utils import (
     LogSample,
     check_mixed_types,
@@ -45,22 +42,10 @@ class LogProcessor:
         self.config = config if config else DataLoaderConfig.from_dict({})
         self.extractors = self._setup_extractors()
 
-    def _setup_extractors(self) -> List[MetadataExtractor]:
+    def _setup_extractors(self):
         """Configure extractors based on the provided configuration"""
-        extractors = []
-
-        # Add the requested extractors
-        for name in self.config.enabled_extractors:
-            if name in self.config.AVAILABLE_EXTRACTORS:
-                extractors.append(self.config.AVAILABLE_EXTRACTORS[name])
-            else:
-                logger.warning(f"Unknown extractor '{name}' requested but not found")
-
-        # Add any custom extractors
-        if self.config.custom_extractors:
-            extractors.extend(self.config.custom_extractors)
-
-        return extractors
+        # The extractors are now already instantiated in the config
+        return self.config.enabled_extractors
 
     def process_sample(
         self,
@@ -88,10 +73,10 @@ class LogProcessor:
 
         for extractor in self.extractors:
             try:
-                extracted_data = extractor.extract(loaded_sample, eval_log_header)
+                extracted_data = extractor(loaded_sample, eval_log_header)
                 row.update(extracted_data)
             except Exception as e:
-                extractor_name = extractor.__class__.__name__
+                extractor_name = getattr(extractor, "__name__", "unknown_extractor")
                 error_msg = f"Error in {extractor_name}: {str(e)}"
                 errors.append(error_msg)
                 logger.info(

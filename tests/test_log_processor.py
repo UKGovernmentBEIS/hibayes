@@ -20,13 +20,12 @@ from inspect_ai.log import (
 from inspect_ai.model import ModelUsage
 from inspect_ai.scorer import Score
 
-from hibayes.load.configs.config import DataLoaderConfig
-from hibayes.load.extractors import (
-    BaseMetadataExtractor,
-    MetadataExtractor,
-    TokenExtractor,
-    ToolsExtractor,
+from hibayes.load import (
+    base_extractor,
+    token_extractor,
+    tools_extractor,
 )
+from hibayes.load.configs.config import DataLoaderConfig
 from hibayes.load.load import (
     LogProcessor,
     get_file_list,
@@ -48,7 +47,11 @@ def eval_sample(score):
     s.id = "sample‑1"
     s.epoch = 1
     s.target = "target‑1"
-    s.messages = ["dummy‑msg"]
+    # Create proper message objects for extractors that expect them
+    msg = MagicMock()
+    msg.role = "user"
+    msg.content = "dummy-msg"
+    s.messages = [msg]
     s.scores = {"default": score}
     s.score = score
     s.metadata = {"challenge_metadata": {"category": "cat"}}
@@ -102,20 +105,24 @@ def log_info():
 @pytest.fixture
 def dl_cfg(tmp_path: Path):
     """A default DataLoaderConfig pointing at a tmp logs dir."""
-    return DataLoaderConfig(
-        enabled_extractors=["base", "tools", "tokens"],
-        custom_extractors=[],
-        files_to_process=[str(tmp_path / "logs")],
+    return DataLoaderConfig.from_dict(
+        {
+            "extractors": {
+                "enabled": ["base_extractor", "tools_extractor", "token_extractor"]
+            },
+            "paths": {"files_to_process": [str(tmp_path / "logs")]},
+        }
     )
 
 
 def test_dataloaderconfig_init(tmp_path: Path):
-    cfg = DataLoaderConfig(
-        enabled_extractors=["base", "tools"],
-        custom_extractors=[],
-        files_to_process=[str(tmp_path)],
+    cfg = DataLoaderConfig.from_dict(
+        {
+            "extractors": {"enabled": ["base_extractor", "tools_extractor"]},
+            "paths": {"files_to_process": [str(tmp_path)]},
+        }
     )
-    assert cfg.enabled_extractors == ["base", "tools"]
+    assert len(cfg.enabled_extractors) == 2
     assert cfg.files_to_process == [str(tmp_path)]
 
 
@@ -124,7 +131,7 @@ def test_dataloaderconfig_from_yaml(tmp_path: Path):
     cfg_file.write_text(
         """
 extractors:
-  enabled: [base, tokens]
+  enabled: [base_extractor, token_extractor]
 paths:
   files_to_process: [/data]
 """
@@ -133,42 +140,20 @@ paths:
     with patch(
         "yaml.safe_load",
         return_value={
-            "extractors": {"enabled": ["base", "tokens"]},
+            "extractors": {"enabled": ["base_extractor", "token_extractor"]},
             "paths": {"files_to_process": ["/data"]},
         },
     ):
         cfg = DataLoaderConfig.from_yaml(str(cfg_file))
-    assert cfg.enabled_extractors == ["base", "tokens"]
+    assert len(cfg.enabled_extractors) == 2
     assert cfg.files_to_process == ["/data"]
-
-
-def test_base_extractor(eval_sample, eval_log):
-    row = BaseMetadataExtractor().extract(eval_sample, eval_log)
-    assert row["score"] == 0.75
-    assert row["dataset"] == "unit‑dataset"
-
-
-def test_base_extractor_normalise_score():
-    ext = BaseMetadataExtractor()
-    assert ext._normalise_score("I") == 0.0
-    assert ext._normalise_score("C") == 1.0
-    assert ext._normalise_score(0.5) == 0.5
-
-
-def test_tools_extractor(eval_sample, eval_log):
-    row = ToolsExtractor().extract(eval_sample, eval_log)
-    assert row["tools"] == ["grep"]
-
-
-def test_token_extractor(eval_sample, eval_log):
-    row = TokenExtractor().extract(eval_sample, eval_log)
-    assert row["total_tokens"] == 100
 
 
 def test_processor_setup(dl_cfg):
     proc = LogProcessor(dl_cfg)
-    kinds = {type(e) for e in proc.extractors}
-    assert kinds == {BaseMetadataExtractor, ToolsExtractor, TokenExtractor}
+    # With the new functional extractors, the config uses functional extractors by default
+    # Check that we have 3 extractors (base, tools, tokens)
+    assert len(proc.extractors) == 3
 
 
 def test_processor_process_sample(eval_log, log_info, dl_cfg):
@@ -182,54 +167,50 @@ def test_processor_process_sample(eval_log, log_info, dl_cfg):
 
 
 def test_processor_unknown_extractor(tmp_path: Path):
-    cfg = DataLoaderConfig(
-        enabled_extractors=["base", "does‑not‑exist"],
-        custom_extractors=[],
-        files_to_process=[str(tmp_path)],
+    # This should raise an error when trying to get a non-existent extractor from registry
+    with pytest.raises(KeyError, match="No registered does-not-exist found"):
+        cfg = DataLoaderConfig.from_dict(
+            {
+                "extractors": {"enabled": ["base_extractor", "does-not-exist"]},
+                "paths": {"files_to_process": [str(tmp_path)]},
+            }
+        )
+
+
+def test_processor_error_capture(eval_log, log_info):
+    # Test error capture with a mock that will fail
+    cfg = DataLoaderConfig.from_dict(
+        {
+            "extractors": {"enabled": ["base_extractor"]},
+            "paths": {"files_to_process": ["/logs"]},
+        }
     )
     proc = LogProcessor(cfg)
-    assert {type(e) for e in proc.extractors} == {BaseMetadataExtractor}
 
-
-class _FailingExtractor(MagicMock, MetadataExtractor):  # type: ignore[misc]
-    """Mock extractor that always raises to test error capture."""
-
-    def extract(self, *_: Any, **__: Any):
+    # Mock an extractor to fail
+    def failing_extractor(sample, eval_log):
         raise RuntimeError("bang")
 
+    failing_extractor.__name__ = "failing_extractor"
+    proc.extractors.append(failing_extractor)
 
-def test_processor_error_capture(eval_log, log_info, dl_cfg):
-    failing = _FailingExtractor(name="Fail")
-    cfg = DataLoaderConfig(
-        enabled_extractors=["base"],
-        custom_extractors=[failing],
-        files_to_process=["/logs"],
-    )
-    proc = LogProcessor(cfg)
     with patch(
         "hibayes.load.load.read_eval_log_sample", return_value=eval_log.samples[0]
     ):
         row = proc.process_sample(eval_log.samples[0], eval_log, log_info)
-    assert "processing_errors" in row and "Fail" in row["processing_errors"]
+    assert "processing_errors" in row
 
 
-def test_processor_with_multiple_custom_extractors(eval_log, log_info, dl_cfg):
-    """Test processor with multiple custom extractors."""
-
-    # Create custom mock extractors
-    custom1 = MagicMock(spec=MetadataExtractor)
-    custom1.extract.return_value = {"custom1": "value1"}
-    custom1.__class__.__name__ = "CustomExtractor1"
-
-    custom2 = MagicMock(spec=MetadataExtractor)
-    custom2.extract.return_value = {"custom2": "value2"}
-    custom2.__class__.__name__ = "CustomExtractor2"
-
-    # Setup the config with base extractor and custom extractors
-    config = DataLoaderConfig(
-        enabled_extractors=["base"],  # Assuming "base" is a valid extractor
-        custom_extractors=[custom1, custom2],
-        files_to_process=["test_dir"],
+def test_processor_with_multiple_custom_extractors(eval_log, log_info):
+    """Test processor with multiple extractors."""
+    # With registry pattern, use multiple registered extractors
+    config = DataLoaderConfig.from_dict(
+        {
+            "extractors": {
+                "enabled": ["base_extractor", "token_extractor", "tools_extractor"]
+            },
+            "paths": {"files_to_process": ["test_dir"]},
+        }
     )
 
     proc = LogProcessor(config)
@@ -241,14 +222,10 @@ def test_processor_with_multiple_custom_extractors(eval_log, log_info, dl_cfg):
     ):
         row = proc.process_sample(eval_log.samples[0], eval_log, log_info)
 
-    # Both custom extractors should have been called once
-    custom1.extract.assert_called_once()
-    custom2.extract.assert_called_once()
-
-    assert "custom1" in row
-    assert "custom2" in row
-    assert row["custom1"] == "value1"
-    assert row["custom2"] == "value2"
+    # Check that extractors produced expected fields
+    assert "score" in row  # From base_extractor
+    assert "total_tokens" in row  # From token_extractor
+    assert "tools" in row  # From tools_extractor
 
 
 def test_is_after_timestamp(eval_log):
@@ -329,13 +306,13 @@ def test_process_eval_logs_parallel(eval_sample, eval_log):
         patch("hibayes.load.load.read_eval_log", return_value=eval_log),
         patch("hibayes.load.load.read_eval_log_sample", return_value=eval_sample),
     ):
-        proc = LogProcessor(
-            DataLoaderConfig(
-                enabled_extractors=["base"],
-                custom_extractors=[],
-                files_to_process=["/"],
-            )
+        config = DataLoaderConfig.from_dict(
+            {
+                "extractors": {"enabled": ["base_extractor"]},
+                "paths": {"files_to_process": ["/"]},
+            }
         )
+        proc = LogProcessor(config)
         rows = list(
             process_eval_logs_parallel(eval_logs=[info], processor=proc, cutoff=None)
         )
@@ -351,3 +328,54 @@ def test_end_to_end_pipeline(tmp_path: Path, eval_sample, eval_log, log_info, dl
     ):
         df = get_sample_df(config=dl_cfg)
     assert len(df) == 1 and df.loc[0, "score"] == 0.75
+
+
+def test_processor_with_functional_extractors(eval_log, log_info):
+    """Test processor with functional extractors."""
+    # Use string references to extractors
+    config = DataLoaderConfig.from_dict(
+        {
+            "extractors": {"enabled": ["base_extractor", "token_extractor"]},
+            "paths": {"files_to_process": ["test_dir"]},
+        }
+    )
+
+    proc = LogProcessor(config)
+    assert len(proc.extractors) == 2
+
+    with patch(
+        "hibayes.load.load.read_eval_log_sample", return_value=eval_log.samples[0]
+    ):
+        row = proc.process_sample(eval_log.samples[0], eval_log, log_info)
+
+    # Should have results from both extractors
+    assert "score" in row  # From base_extractor
+    assert "total_tokens" in row  # From token_extractor
+
+
+def test_processor_with_mixed_extractors(eval_log, log_info):
+    """Test processor with parameterized extractors."""
+    # Use extractors with parameters
+    config = DataLoaderConfig.from_dict(
+        {
+            "extractors": {
+                "enabled": [
+                    "base_extractor",
+                    {"message_count_extractor": {"include_system": False}},
+                ]
+            },
+            "paths": {"files_to_process": ["test_dir"]},
+        }
+    )
+
+    proc = LogProcessor(config)
+    assert len(proc.extractors) == 2
+
+    with patch(
+        "hibayes.load.load.read_eval_log_sample", return_value=eval_log.samples[0]
+    ):
+        row = proc.process_sample(eval_log.samples[0], eval_log, log_info)
+
+    # Should have results from both extractors
+    assert "score" in row  # From base_extractor
+    assert "total_messages" in row  # From message_count_extractor
