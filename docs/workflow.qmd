@@ -76,7 +76,7 @@ config = ProcessConfig().from_dict(
 
 analysis_state = process_data(config, display, analysis_state)
 ```
-1. **Processors** here we are specifying which of the default processors we want to apply. Note the custom args for the columns to check for missing values! Want to add a custom Processor? more on that later.
+1. **Processors** here we are specifying which of the default processors we want to apply. Note the custom args for the columns to check for missing values! Want to add a custom Processor? See our [processors documentation](processors.qmd) for more details.
 
 
 ## Stage 3: Modelling
@@ -106,14 +106,14 @@ models:
     tag: how_about_this
 
 ```
-1. **Path to where your custom models are defined** Here provide the path to where you have defined your custom models. TODO: Add link to how to define custom models.
+1. **Path to where your custom models are defined** Here provide the path to where you have defined your custom models. Learn more in our [models documentation](models.qmd).
 2. **Name a model** you can provide the string for the name of the model you would like to fit. Here is a model in the hibayes default library (no path required for this model).
 3. **Custom arguments** here we fit a second model, the same as the first, but with custom arguments. Here we have added some main effects and interactions, some custom fit parameters for MCMC along with some other details.
 4. **Call your own model** this model is defined in path_to_custom_model.py. Hibayes will register models in this file and add it to the model configuration.
 
 ## Stage 4: Checking
 
-Hibayes provides a series of checks to assess the fit of each model. Checks can either pass, fail or return an NA. Checks can run either before modelling fitting e.g. prior posterior checks or after e.g. posterior predictive or rhat. Some like the the prior and posterior predictice checks requier user interaction to approve while others such as divergents can be set up to fail as user specified threholds. Here is an example check config.yaml file with the user interactivity turned off (plots are save and can be verified at a later date).
+Hibayes provides a series of checks to assess the fit of each model. Checks can either pass, fail or return an NA. Checks can run either before modelling fitting e.g. prior posterior checks or after e.g. posterior predictive or rhat. Some like the the prior and posterior predictice checks requier user interaction to approve while others such as divergents can be set up to fail as user specified threholds. Here is an example check config.yaml file with the user interactivity turned off (plots are save and can be verified at a later date). For more information on available checkers, see our [checkers documentation](checkers.qmd).
 
 ```yaml
 checkers:
@@ -131,9 +131,9 @@ checkers:
 2. the user has specified that up to 10 divergences during the MCMC fitting is acceptable.
 3. the user turned off interactivity (no longer prompted for approval) and passed some kwargs to the plotting function
 
-## Stage 4: Commincation
+## Stage 5: Communication
 
-Hibayes support two methods of communicating results, plots and tables. Again there are some default plots and tables along with the option of providing your own methods.
+Hibayes support two methods of communicating results, plots and tables. Again there are some default plots and tables along with the option of providing your own methods. Learn more about customizing outputs in our [communicators documentation](communicators.qmd).
 
 ```yaml
 path: path_to_your_custom_communicators.py
