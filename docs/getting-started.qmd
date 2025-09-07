@@ -179,7 +179,7 @@ For a new experiment:
 ```bash
 mkdir experiments/my_experiment
 cd experiments/my_experiment
-git init
+git init # if not already in a git repo.
 uv run dvc init --subdir
 ```
 

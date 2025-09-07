@@ -9,27 +9,34 @@ HiBayES follows a structured pipeline approach that ensures reproducibility, mod
 
 ## Stage 1: Loading Data
 
-The loading stage extracts structured data from Inspect AI evaluation logs.
+The loading stage extracts structured data from Inspect AI evaluation logs or other data sources using extractors.
 
 ### Purpose
 - Parse JSON/eval log files
-- Extract relevant metadata and scores
+- Extract relevant metadata and scores using extractors
 - Combine multiple logs into a unified dataset
+
 
 ### Key Components
 
 ```python
 from hibayes.load import DataLoaderConfig
 from hibayes.ui import ModellingDisplay
-
 from hibayes.analysis import load_data
 
-config = DataLoaderConfig()  # <1>
+config = DataLoaderConfig.from_dict({
+    "extractors": {
+        "enabled": ["base_extractor"]  # <1>
+    },
+    "paths": {
+        "files_to_process": ["path/to/logs"]
+    }
+})
 display = ModellingDisplay()
 
 analysis_state = load_data(config, display) # <2>
 ```
-1. **Default Extractors** here we are using the default extractors which extract basic information from the inspect logs. You can pass custom extractors or select from the prebuilt extracts by passing their names as strings here.
+1. **Default Extractors** - Using the default `base_extractor` which extracts basic information from inspect logs. You can add more built-in extractors or custom ones by listing their registered names.
 
 2. **AnalysisState** This object flows through the whole workflow. Here the extracted data is stored, all model fits and configs along with the analysis results.
 
@@ -61,7 +68,7 @@ from hibayes.process import ProcessConfig
 from hibayes.analysis import process_data
 
 config = ProcessConfig().from_dict(
-    {"processors": [{"drop_rows_with_missing_features": ["model", "score", "task"]},
+    {"processors": [{"drop_rows_with_missing_features": {"features": ["model", "score", "task"]}},
     "extract_observed_feature",
     "extract_features"
     ]}
@@ -74,23 +81,127 @@ analysis_state = process_data(config, display, analysis_state)
 
 ## Stage 3: Modelling
 
-The modelling stage fits Bayesian models to the processed data.
-
+The modelling stage fits Bayesian models to the processed data. Lets load the configuration from a config.yaml file this time and define our own custom model to fit.
 ### Purpose
 - Define probabilistic models
 - Pick one from our default library or define one yourself
 - Fit the model!
 
-```python
-from hibayes.model import ProcessConfig
-from hibayes.analysis import process_data
+```yaml
+path: path_to_custom_model.py # <1>
+models:
+- name: ordered_logistic_model # <2>
+- name: ordered_logistic_model # <3>
+    config:
+    tag: give_this_model_a_unique_name
+    main_effects: ["grader", "LLM"]
+    interactions: [["grader", "LLM"]]
+    num_classes: 11  # for 0-10 scale
+    effect_coding_for_main_effects: true
+    fit:
+        samples: 2000
+        chains: 4
+- name: custom_model # <4>
+    config:
+    tag: how_about_this
 
-config = ProcessConfig().from_dict(
-    {"processors": [{"drop_rows_with_missing_features": ["model", "score", "task"]},
-    "extract_observed_feature",
-    "extract_features"
-    ]}
-) # <1>
+```
+1. **Path to where your custom models are defined** Here provide the path to where you have defined your custom models. TODO: Add link to how to define custom models.
+2. **Name a model** you can provide the string for the name of the model you would like to fit. Here is a model in the hibayes default library (no path required for this model).
+3. **Custom arguments** here we fit a second model, the same as the first, but with custom arguments. Here we have added some main effects and interactions, some custom fit parameters for MCMC along with some other details.
+4. **Call your own model** this model is defined in path_to_custom_model.py. Hibayes will register models in this file and add it to the model configuration.
 
-analysis_state = process_data(config, display, analysis_state)
+## Stage 4: Checking
+
+Hibayes provides a series of checks to assess the fit of each model. Checks can either pass, fail or return an NA. Checks can run either before modelling fitting e.g. prior posterior checks or after e.g. posterior predictive or rhat. Some like the the prior and posterior predictice checks requier user interaction to approve while others such as divergents can be set up to fail as user specified threholds. Here is an example check config.yaml file with the user interactivity turned off (plots are save and can be verified at a later date).
+
+```yaml
+checkers:
+- prior_predictive_plot # <1>
+- r_hat
+- divergences: {threshold: 10} # <2>
+- ess_bulk
+- ess_tail
+- loo
+- bfmi
+- posterior_predictive_plot: {plot_proportion: true, interactive: false, plot_kwargs: {num_pp_samples: 50}} # <3>
+- waic
+```
+1. here the user is asked to approve whether the model assumptions are appropriate (before data is observed)
+2. the user has specified that up to 10 divergences during the MCMC fitting is acceptable.
+3. the user turned off interactivity (no longer prompted for approval) and passed some kwargs to the plotting function
+
+## Stage 4: Commincation
+
+Hibayes support two methods of communicating results, plots and tables. Again there are some default plots and tables along with the option of providing your own methods.
+
+```yaml
+path: path_to_your_custom_communicators.py
+communicators:
+    - forest_plot: {vars: ["grader_effects", "LLM_effects", "grader_type_effects"], combined: true, vertical_line: 0}
+    - forest_plot: {vars: ["LLM_effects", "grader_type_0_mean", "grader_type_1_mean", "grader_raw_effects"], combined: true, figsize: [10,10], vertical_line: 0}
+    - summary_table
+    - model_comparison_plot
+    - your_lovely_plot: {title: true}
+```
+
+## Piecing this all together
+The user can simply combine all these steps into one with the following command:
+
+```bash
+hibayes-full --config config.yaml --out .out
+```
+with the following config.yaml:
+
+```yaml
+data_loader:
+  paths:
+    files_to_process:
+      - path/to/logs
+  extractors:
+    enabled:
+      - base_extractor  # Built-in functional extractor
+data_process:
+  processors:
+    - drop_rows_with_missing_features: {features: [model, score, task]}
+    - extract_observed_features
+    - extract_features
+
+model:
+    path: path_to_custom_model.py
+    models:
+    - name: ordered_logistic_model
+    - name: ordered_logistic_model
+        config:
+        tag: give_this_model_a_unique_name
+        main_effects: ["grader", "LLM"]
+        interactions: [["grader", "LLM"]]
+        num_classes: 11  # for 0-10 scale
+        effect_coding_for_main_effects: true
+        fit:
+            samples: 2000
+            chains: 4
+    - name: custom_model
+        config:
+        tag: how_about_this
+check:
+  checkers:
+    - prior_predictive_plot
+    - r_hat
+    - divergences: {threshold: 10}
+    - ess_bulk
+    - ess_tail
+    - loo
+    - bfmi
+    - posterior_predictive_plot: {plot_proportion: true, interactive: false, plot_kwargs: {num_pp_samples: 50}} # <3>
+    - waic
+communicate:
+  path: path_to_your_custom_communicators.py
+  communicators:
+    - forest_plot: {vars: ["grader_effects", "LLM_effects", "grader_type_effects"], combined: true, vertical_line: 0}
+    - forest_plot: {vars: ["LLM_effects", "grader_type_0_mean", "grader_type_1_mean", "grader_raw_effects"], combined: true, figsize: [10,10], vertical_line: 0}
+    - summary_table
+    - model_comparison_plot
+    - your_lovely_plot: {title: true}
+
 ```

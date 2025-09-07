@@ -6,15 +6,7 @@ This directory contains the Quarto documentation for HiBayES.
 
 ### Prerequisites
 
-1. Install Quarto:
-   ```bash
-   # Option 1: Using pip
-   pip install quarto-cli
-
-   # Option 2: Download from https://quarto.org/docs/get-started/
-   ```
-
-2. Install HiBayES with documentation dependencies:
+Install HiBayES with documentation dependencies:
    ```bash
    # From source (development)
    pip install -e ".[docs]"
