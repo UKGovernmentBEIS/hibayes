@@ -7,6 +7,8 @@ description: "Handling ordinal data with ordered logistic models"
 
 These examples demonstrate how to analyze ordinal evaluation data with skewed distributions using ordered logistic regression models. Located in `examples/skewed_score/`, they showcase custom model implementations and specialized visualisations for ordinal outcomes.
 
+This notebook implements methods from the paper: [**Skewed Score: A Statistical Framework to Assess Autograders**](https://arxiv.org/pdf/2507.03772)
+
 
 ## Question 1: Grader Effects Analysis
 

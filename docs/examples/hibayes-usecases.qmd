@@ -7,6 +7,8 @@ description: "Standard workflows for analyzing model evaluation results"
 
 These examples demonstrate standard HiBayES workflows for analyzing model evaluation results across different domains and difficulty levels. Located in `examples/hibayes-usecases/`, they showcase how to combine custom extractors, processors, and multiple model comparisons.
 
+This notebook implements methods from the paper: [**A Hierarchical Bayesian Modeling Framework for AI Evaluation Statistics**](https://arxiv.org/pdf/2505.05602)
+
 ## Use Case 1: Domain-Based Analysis
 
 Analyses model performance across different task domains (coding vs reasoning) with varying difficulty levels.
