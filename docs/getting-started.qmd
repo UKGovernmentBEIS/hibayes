@@ -5,7 +5,7 @@ description: "Installation, setup, and your first HiBayES analysis"
 
 ## Overview
 
-HiBayES is a Python package for analyzing data from [Inspect](https://github.com/UKGovernmentBEIS/inspect_ai) logs using statistical modeling techniques presented in [HiBayES: A Hierarchical Bayesian Modeling Framework for AI Evaluation Statistics](https://arxiv.org/abs/2505.05602).
+HiBayES is a Python package for analysing data from [Inspect](https://github.com/UKGovernmentBEIS/inspect_ai) logs using statistical modeling techniques presented in [HiBayES: A Hierarchical Bayesian Modeling Framework for AI Evaluation Statistics](https://arxiv.org/abs/2505.05602).
 
 ::: {.callout-warning}
 ## Work In Progress
@@ -139,36 +139,52 @@ HiBayES uses YAML configuration files to define the analysis pipeline:
 ```yaml
 data_loader:
   paths:
-    files_to_process:
-      - path/to/log.eval
+    files_to_process: # <1>
+      - path/to/log.eval 
       - path/to/logs/directory/
-  extractors:
+      - path/to/text.txt 
+  extractors: # <2>
     enabled:
       - base
 
-data_process:
+data_process: # <3>
   processors:
+    - drop_rows_with_missing_features
     - extract_observed_feature: {feature_name: score}
     - extract_predictors: {predictor_names: [model]}
 
 model:
+  path: path/to/your_script.py
   models:
-    - name: binomial_model
+    - name: linear_group_binomial
       config:
-        main_effects: [model]
+        main_effects: [model, capability]
+    - name: linear_group_binomial # <4>
+      config:
+        tag: with_interaction
+        main_effects: [model, capability]
+        interactions: [model, capability]
+    - name: your_custom_model
+      
 
 check:
-  checkers:
-    - prior_predictive_plot
+  checkers: # <5> 
     - r_hat
-    - divergences
+    - divergences: {threshold: 5}
+    - prior_predictive_plot: {interactive: false} # <6>
 
-communicate:
+communicate: # <7> 
   communicators:
     - forest_plot
     - summary_table
 ```
-
+1. you can specify a list of eval logs, or a directory of logs or a txt file containing a list of logs. These can be local files or s3 files
+2. what information do you want to extract from the eval logs? there are a range of built in extractors e.g. base which extracts the required inspect log features. You can also specify your own custom extractors, see the loading section for more info.
+3. Data processors help you filter logs, modify their values and much more. You are now working with a pandas dataframe so anything goes! Process creates a new version of the data, keeping the raw extracted results immutable.
+4. run multiple models with different configurations and find out which one is the best fit.
+5. specify what kind of model fit checks you would like to run. Here we are checking for sensible r_hat values and flagging if there are more than 5 divergences.
+6. Some checks require user interaction to approve (like prior and posterior predictive checks). If you are running lots of models this can be a little annoying so you can turn this off and check the results after the runs have completed.
+7. Finally how do you want to communicate the results? There are lots of built in methods, but like with all other steps you can specify your own plotting/tabular methods.
 ## DVC Integration
 
 HiBayES uses [DVC](https://dvc.org/) for reproducible analysis pipelines.
@@ -187,32 +203,49 @@ uv run dvc init --subdir
 
 Define stages in `dvc.yaml`:
 ```yaml
-stages:
+stages: # <1>
   load:
-    cmd: hibayes-load --config files/config.yaml
-    deps:
-      - files/config.yaml
+    cmd: hibayes-load --config files/config.yaml --out .output/load
+    deps: # <2> 
       - data/
-    outs:
-      - outputs/analysis_state_load.pkl
-
-  process:
-    cmd: hibayes-process --config files/config.yaml
-    deps:
+    params:
       - files/config.yaml
-      - outputs/analysis_state_load.pkl
+        - data_loader
     outs:
-      - outputs/analysis_state_process.pkl
+      - outputs/load
+
+  process: # <3>
+    cmd: hibayes-process --config files/config.yaml --analysis-state .output/load/ --out .output/process
+    deps:
+      - .output/load
+    params:
+      - files/config.yaml
+        - data_process
+    outs:
+      - outputs/process
 
   model:
-    cmd: hibayes-model --config files/config.yaml
-    deps:
+    cmd: hibayes-model --config files/config.yaml --analysis-state .output/process/
+    params:
       - files/config.yaml
-      - outputs/analysis_state_process.pkl
+        - model
+        - check
+        - platform 
     outs:
-      - outputs/analysis_state_model.pkl
+      - .output/model
+  communicate:
+    cmd: hibayes-comm --config files/config.yaml --analysis-state .output/model/ --out .output/communicate/
+    deps:
+      - .output/model/
+    params:
+      - files/config.yaml:
+        - communicate
+    outs:
+     - .output/communicate/
 ```
-
+1. if you want to use dvc you need to specify the stages to run. This way when you run dvc repro, only the stages which have changed will be rerun
+2. if these anything in deps or params changes rerun on repro!
+3. as you can see each of the below stages loads and adds to the analysis state
 Run the pipeline:
 ```bash
 dvc repro

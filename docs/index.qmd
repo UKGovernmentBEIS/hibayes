@@ -6,7 +6,7 @@ subtitle: "Hierarchical Bayesian Modelling Framework for AI Evaluation Statistic
 ::: {.hero-section}
 # Welcome to HiBayES
 
-A powerful Python framework for analysing AI evaluation data using hierarchical Bayesian statistical models.
+A Python framework for analysing AI evaluation data using hierarchical Bayesian statistical models.
 
 [Get Started](getting-started.qmd){.btn-custom} [View on GitHub](https://github.com/UKGovernmentBEIS/hibayes){.btn-custom}
 :::
