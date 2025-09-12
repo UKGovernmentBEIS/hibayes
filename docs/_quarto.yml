@@ -35,7 +35,9 @@ website:
             - loaders.qmd
             - processors.qmd
             - models.qmd
+            - checkers.qmd
             - communicators.qmd
+            - analysis-state.qmd
         - section: "Examples"
           contents:
             - examples/hibayes-usecases.qmd

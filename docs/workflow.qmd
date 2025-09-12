@@ -24,9 +24,9 @@ from hibayes.load import DataLoaderConfig
 from hibayes.ui import ModellingDisplay
 from hibayes.analysis import load_data
 
-config = DataLoaderConfig.from_dict({
+config = DataLoaderConfig.from_dict({ # <1>
     "extractors": {
-        "enabled": ["base_extractor"]  # <1>
+        "enabled": ["base_extractor"]  # <2>
     },
     "paths": {
         "files_to_process": ["path/to/logs"]
@@ -34,11 +34,12 @@ config = DataLoaderConfig.from_dict({
 })
 display = ModellingDisplay()
 
-analysis_state = load_data(config, display) # <2>
+analysis_state = load_data(config, display) # <3>
 ```
-1. **Default Extractors** - Using the default `base_extractor` which extracts basic information from inspect logs. You can add more built-in extractors or custom ones by listing their registered names.
+1. this would usually be loaded from a yaml file - see the modelling section below.
+2. **Default Extractors** - Using the default `base_extractor` which extracts basic information from inspect logs. You can add more built-in extractors or custom ones by listing their registered names.
 
-2. **AnalysisState** This object flows through the whole workflow. Here the extracted data is stored, all model fits and configs along with the analysis results.
+3. **AnalysisState** This object flows through the whole workflow. Here the extracted data is stored, all model fits and configs along with the analysis results.
 
 ### Output
 - Pandas DataFrame with evaluation results
@@ -86,7 +87,8 @@ analysis_state = process_data(config, display, analysis_state)
 
 ## Stage 3: Modelling
 
-The modelling stage fits Bayesian models to the processed data. Lets load the configuration from a config.yaml file this time and define our own custom model to fit.
+The modelling stage fits Bayesian models to the processed data. Lets load the configuration from a config.yaml file this time and define our own custom model to fit. This would usually be part of a larger config file featuring all 5 stages, see the [getting started](getting-started.qmd) for more details.
+
 ### Purpose
 - Define probabilistic models
 - Pick one from our default library or define one yourself
@@ -118,17 +120,15 @@ models:
 
 ## Stage 4: Checking
 
-Hibayes provides a series of checks to assess the fit of each model. Checks can either pass, fail or return an NA. Checks can run either before modelling fitting e.g. prior posterior checks or after e.g. posterior predictive or rhat. Some like the the prior and posterior predictice checks requier user interaction to approve while others such as divergents can be set up to fail as user specified threholds. Here is an example check config.yaml file with the user interactivity turned off (plots are save and can be verified at a later date). For more information on available checkers and how to define your own, see our [checkers documentation](checkers.qmd).
+Hibayes provides a series of checks to assess the fit of each modelling process. Checks can either pass, fail or return an NA. Checks can run either before modelling fitting e.g. prior predictive checks or after e.g. posterior predictive or rhat. Some like the prior and posterior predictice checks requier user interaction to approve while others such as divergents can be set up to fail as user specified threseholds. Here is an example check config.yaml file with the user interactivity turned off (plots are saved and can be verified at a later date). For more information on available checkers and how to define your own, see our [checkers documentation](checkers.qmd).
 
 ```yaml
 checkers:
 - prior_predictive_plot # <1>
 - r_hat
 - divergences: {threshold: 10} # <2>
-- ess_bulk
 - ess_tail
 - loo
-- bfmi
 - posterior_predictive_plot: {plot_proportion: true, interactive: false, plot_kwargs: {num_pp_samples: 50}} # <3>
 - waic
 ```

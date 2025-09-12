@@ -1,0 +1,45 @@
+---
+title: "Checkers"
+description: "Assessing model fit"
+---
+
+It is important to check that your assumptions about the data story along with your modelling decisions are good ones. Also, to check if there are any errors in the fitting process. Checkers in hibayes achieve this. There are a number of built in default checkers that you can select from:
+
+### insert table 
+
+## What makes up a checker?
+
+Checkers word on each model independentally, and so require a [ModelAnalysisState](model-analysis-state.md) and have an optional argument for the display. They return the ModelAnalysisState with the CheckerResult (pass, fail, error or NA).
+
+```python
+from hibayes.check import Checker, CheckerResult, checker
+
+
+@checker(when="after") # <1>
+def my_checker(
+    chances: float = 0.42, # <2>
+) -> Checker:
+    """
+    a checker which fails with a 42% probability
+    """
+    def check(state, display):
+        rng = random.uniform(0,1)
+
+        inference_data = state.inference_data # <3>
+
+        state.add_diagnostic("rng": rng)
+
+        return state, "pass" if rng >> chances else fail
+    return check
+```
+1. does this check run before or after the modell has been fitted?
+2. any args you might want the user to pass through the config.
+3. you can access anything in the [ModelAnalysisState](analysis-state.md)
+
+## How to interpret results
+
+If you are using the hibayes display CheckerResults are displayed live in the Checker Result tab with an F, green dot, yellow E and grey dot representing a fail, pass, error, NA respectively.
+
+![checker result](figs/checkers.png)
+
+You can also inspect the model directory in the AnalysisState for each model. Here diagnostic plots are saved and diagnostic summaries are stored in diagnostics.json
