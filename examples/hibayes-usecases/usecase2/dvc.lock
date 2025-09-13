@@ -5,9 +5,9 @@ stages:
     deps:
     - path: ../../../src/hibayes/load/
       hash: md5
-      md5: 7a55eb23ee0e60f11e9aa92a47bc82d3.dir
-      size: 133041
-      nfiles: 23
+      md5: c9f84caf9e4c7dd93e60e11bc2f434e9.dir
+      size: 98139
+      nfiles: 20
     - path: ../files/custom_extractor.py
       hash: md5
       md5: c01f2809ab0c79cb0e4373fb694c304f
@@ -26,8 +26,8 @@ stages:
     outs:
     - path: .output/load/
       hash: md5
-      md5: 20aaba90e55db487e170f225b5cce919.dir
-      size: 157370
+      md5: a7e64e34a5f989796bf913b266658eb5.dir
+      size: 157458
       nfiles: 3
   process:
     cmd: hibayes-process --config files/config.yaml --analysis-state 
@@ -35,13 +35,13 @@ stages:
     deps:
     - path: ../../../src/hibayes/process/
       hash: md5
-      md5: f4f7dd4eb8f3fa773eef04c5f1f0592a.dir
-      size: 37664
+      md5: 65911d6ab0efbdc78ce3c72db748ca79.dir
+      size: 37631
       nfiles: 10
     - path: .output/load/
       hash: md5
-      md5: 20aaba90e55db487e170f225b5cce919.dir
-      size: 157370
+      md5: a7e64e34a5f989796bf913b266658eb5.dir
+      size: 157458
       nfiles: 3
     params:
       files/config.yaml:
@@ -70,8 +70,8 @@ stages:
     outs:
     - path: .output/process/
       hash: md5
-      md5: 5f0b578776b4b1b059c94059ab593251.dir
-      size: 157288
+      md5: 6c68cdf7994fad69769938da860acdad.dir
+      size: 157824
       nfiles: 6
   model:
     cmd: hibayes-model --config files/config.yaml --analysis-state 
@@ -79,13 +79,13 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: 8c8b73eaa83ca4c20c15687520e825ef.dir
-      size: 531904
-      nfiles: 108
+      md5: d291cb274d8da8fc09743c1a53bbc8e1.dir
+      size: 499335
+      nfiles: 106
     - path: .output/process/
       hash: md5
-      md5: 5f0b578776b4b1b059c94059ab593251.dir
-      size: 157288
+      md5: 6c68cdf7994fad69769938da860acdad.dir
+      size: 157824
       nfiles: 6
     params:
       files/config.yaml:
@@ -124,25 +124,25 @@ stages:
           - name: three_level_group_binomial_exponential
             config:
               tag: version_2
-              prior_sigma_group_rate: 1
-              prior_sigma_subgroup_rate: 1
-              prior_sigma_subsubgroup_rate: 1
+              prior_sigma_group_rate: 1.5
+              prior_sigma_subgroup_rate: 1.5
+              prior_sigma_subsubgroup_rate: 1.5
               fit:
                 seed: 0
           - name: three_level_group_binomial_exponential
             config:
               tag: version_3
-              prior_sigma_group_rate: 1.5
-              prior_sigma_subgroup_rate: 1.5
-              prior_sigma_subsubgroup_rate: 1.5
+              prior_sigma_group_rate: 3
+              prior_sigma_subgroup_rate: 3
+              prior_sigma_subsubgroup_rate: 3
               fit:
                 seed: 0
         platform:
     outs:
     - path: .output/model/
       hash: md5
-      md5: 4a063a23e7a9ed8a5ebc4d089d266fd7.dir
-      size: 13752203
+      md5: 9e4a5fd7c20276a22b841001a2ea6e2d.dir
+      size: 14509072
       nfiles: 50
   communicate:
     cmd: hibayes-comm --config files/config.yaml --analysis-state .output/model/
@@ -150,13 +150,13 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: 8c8b73eaa83ca4c20c15687520e825ef.dir
-      size: 531904
-      nfiles: 108
+      md5: d291cb274d8da8fc09743c1a53bbc8e1.dir
+      size: 499335
+      nfiles: 106
     - path: .output/model/
       hash: md5
-      md5: 4a063a23e7a9ed8a5ebc4d089d266fd7.dir
-      size: 13752203
+      md5: 9e4a5fd7c20276a22b841001a2ea6e2d.dir
+      size: 14509072
       nfiles: 50
     params:
       files/config.yaml:
@@ -180,6 +180,6 @@ stages:
     outs:
     - path: .output/communicate/
       hash: md5
-      md5: 896b4499904e68eea3208489e721427c.dir
-      size: 16750003
+      md5: 8b60b9ccf64ff73b6e7fc457d9617d56.dir
+      size: 16388841
       nfiles: 59

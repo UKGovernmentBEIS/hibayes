@@ -32,7 +32,7 @@ def my_checker(
         return state, "pass" if rng >> chances else fail
     return check
 ```
-1. does this check run before or after the modell has been fitted?
+1. does this check run before or after the modell has been fitted? The checker decorator registers the function so it can be accessed simply by calling the checker string but it also enforces an agreed upon functionality.
 2. any args you might want the user to pass through the config.
 3. you can access anything in the [ModelAnalysisState](analysis-state.md)
 

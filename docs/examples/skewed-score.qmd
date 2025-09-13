@@ -9,6 +9,10 @@ These examples demonstrate how to analyze ordinal evaluation data with skewed di
 
 This notebook implements methods from the paper: [**Skewed Score: A Statistical Framework to Assess Autograders**](https://arxiv.org/pdf/2507.03772)
 
+::: {.callout-warning}
+## No inspect logs
+We cannot provide the inspect logs for this example, just the extracted csvs.
+:::
 
 ## Question 1: Grader Effects Analysis
 
