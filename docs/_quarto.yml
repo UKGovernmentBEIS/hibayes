@@ -37,6 +37,7 @@ website:
             - models.qmd
             - checkers.qmd
             - communicators.qmd
+            - platform.qmd
             - analysis-state.qmd
         - section: "Examples"
           contents:

@@ -1,0 +1,10 @@
+---
+title: "Example"
+subtitle: "Example HiBayES analysis"
+---
+
+Here we document example use cases of HiBayes. More examples incoming! We welcome contributions of your own example use cases.
+
+### Examples
+- [Binomial model fitted to hierarchal data](hibayes-usecases.qmd)
+- [An investigation into LLM autograders biases with ordinal data](skewed-score.qmd)

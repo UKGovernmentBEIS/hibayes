@@ -5,7 +5,7 @@ description: "Assessing model fit"
 
 It is important to check that your assumptions about the data story along with your modelling decisions are good ones. Also, to check if there are any errors in the fitting process. Checkers in hibayes achieve this. There are a number of built in default checkers that you can select from:
 
-### insert table 
+### insert table
 
 ## What makes up a checker?
 
@@ -20,7 +20,7 @@ def my_checker(
     chances: float = 0.42, # <2>
 ) -> Checker:
     """
-    a checker which fails with a 42% probability
+    a checker which fails with a chances probability
     """
     def check(state, display):
         rng = random.uniform(0,1)
@@ -29,7 +29,7 @@ def my_checker(
 
         state.add_diagnostic("rng": rng)
 
-        return state, "pass" if rng >> chances else fail
+        return state, "pass" if rng > chances else "fail"
     return check
 ```
 1. does this check run before or after the modell has been fitted? The checker decorator registers the function so it can be accessed simply by calling the checker string but it also enforces an agreed upon functionality.

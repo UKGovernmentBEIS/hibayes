@@ -93,12 +93,14 @@ Results are saved in the output directory as an `analysis_state` object containi
 HiBayES provides modular commands for each stage of analysis:
 
 #### Loading Data
+Extract eval results from inspect .eval and .json log files. The path to the log files, both s3 and local, can be specified in the config.yaml. You can select from the prebuilt extractors or create [your own](loaders.qmd). By default each inspect sample is extracted as a single pandas row. The extracted data is saved as a .parquet file.
 ```bash
 uv run hibayes-load --config <path-to-config.yaml> \
     --out <path-to-store-processed-data>
 ```
 
 #### Processing Data
+Filtering and processing data happening in a separate stage in HiBayES. Any pandas operation is possible. The extracted data is immutable, a new processed data object is created. As part of the processing stage jax arrays are extracted which are then used in modelling, this happens at the end of the processing stage. You will note the appearance of the [AnalysisState](analysis-state.qmd), this object flows through the entire HiBayES process. Here, fitted models, processed data, logs and everything needed to produce the analysis is saved.
 ```bash
 uv run hibayes-process --config <path-to-config.yaml> \
     --analysis-state <path-to-analysis-state> \
@@ -106,20 +108,15 @@ uv run hibayes-process --config <path-to-config.yaml> \
 ```
 
 #### Fitting Models
+HiBayES uses NumPyro which itself uses Jax for efficient fitting of statistical models. For a list of default models and how you can define your own model please see the [modelling documentation](models.qmd). The models to fit along with their arguments can be specified in the config.yaml file. hibayes-model expects that data features have already been extracted (hibayes-process handles this!). As part of the modelling process a set of default checks on modelling fit are run, you can add your own and specify which of the default checks you would like to run in, read more in [checks](checkers.qmd)
 ```bash
 uv run hibayes-model --config <path-to-config.yaml> \
     --analysis-state <path-to-analysis-state> \
     --out <path-to-model-fit-results>
 ```
 
-#### Checking Models
-```bash
-uv run hibayes-check --config <path-to-config.yaml> \
-    --analysis-state <path-to-analysis-state> \
-    --out <path-to-check-results>
-```
-
 #### Communicating Results
+This is where you plot and create tables. Again there are default communication methods, which can be selected in config.yaml and you can create your own methods, please see in [communicate](communicators.qmd)
 ```bash
 uv run hibayes-communicate --config <path-to-config.yaml> \
     --analysis-state <path-to-analysis-state> \
@@ -127,6 +124,7 @@ uv run hibayes-communicate --config <path-to-config.yaml> \
 ```
 
 #### Full Pipeline
+To run the full HiBayES pipeline simply run the following.
 ```bash
 uv run hibayes-full --config <path-to-config.yaml> \
     --out <path-to-results>
@@ -140,9 +138,9 @@ HiBayES uses YAML configuration files to define the analysis pipeline:
 data_loader:
   paths:
     files_to_process: # <1>
-      - path/to/log.eval 
+      - path/to/log.eval
       - path/to/logs/directory/
-      - path/to/text.txt 
+      - path/to/text.txt
   extractors: # <2>
     enabled:
       - base
@@ -165,15 +163,15 @@ model:
         main_effects: [model, capability]
         interactions: [model, capability]
     - name: your_custom_model
-      
+
 
 check:
-  checkers: # <5> 
+  checkers: # <5>
     - r_hat
     - divergences: {threshold: 5}
     - prior_predictive_plot: {interactive: false} # <6>
 
-communicate: # <7> 
+communicate: # <7>
   communicators:
     - forest_plot
     - summary_table
@@ -206,7 +204,7 @@ Define stages in `dvc.yaml`:
 stages: # <1>
   load:
     cmd: hibayes-load --config files/config.yaml --out .output/load
-    deps: # <2> 
+    deps: # <2>
       - data/
     params:
       - files/config.yaml
@@ -230,7 +228,7 @@ stages: # <1>
       - files/config.yaml
         - model
         - check
-        - platform 
+        - platform
     outs:
       - .output/model
   communicate:
