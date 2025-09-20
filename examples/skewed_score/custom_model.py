@@ -105,15 +105,9 @@ def hierarchical_ordered_logistic_model(
         # Create mapping from grader index to grader type
         # We need to build this mapping for all possible grader indices
         grader_type_mapping = jnp.zeros(n_graders, dtype=jnp.int32)
-
-        # For each unique grader, find their type
-        for i in range(n_graders):
-            # Find the first occurrence of this grader in the data
-            mask = grader_indices == i
-            # Get the type for this grader (using the first occurrence)
-            grader_type = jnp.where(mask, grader_type_indices, -1)
-            grader_type = jnp.max(grader_type)  # Get the actual type (non -1 value)
-            grader_type_mapping = grader_type_mapping.at[i].set(grader_type)
+        grader_type_mapping = grader_type_mapping.at[grader_indices].set(
+            grader_type_indices
+        )
 
         # Sample individual grader effects with non-centered parameterization
         raw_effects = numpyro.sample(

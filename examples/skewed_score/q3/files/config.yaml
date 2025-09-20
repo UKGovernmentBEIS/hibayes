@@ -30,7 +30,7 @@ model:
     - name: hierarchical_ordered_logistic_model
       config:
         tag: version_1
-        main_effects: ["LLM"]
+        main_effects: ["LLM", "grader", "grader_type"]
         interactions: [["grader", "LLM"]]
         num_classes: 11
         effect_coding_for_main_effects: true
