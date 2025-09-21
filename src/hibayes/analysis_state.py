@@ -214,7 +214,7 @@ class ModelAnalysisState:
         )
 
         self.model_config.save(path / "model_config.json")
-        
+
         # Save platform config
         _dump_json(self.platform_config, path / "platform_config.json")
 
@@ -277,11 +277,13 @@ class ModelAnalysisState:
             dims = _load_json(path / "dims.json")
 
         model_config = ModelConfig.from_dict(_load_json(path / "model_config.json"))
-        
+
         # Load platform config
         platform_config = None
         if (path / "platform_config.json").exists():
-            platform_config = PlatformConfig.from_dict(_load_json(path / "platform_config.json"))
+            platform_config = PlatformConfig.from_dict(
+                _load_json(path / "platform_config.json")
+            )
 
         diagnostics = None
         if (path / "diagnostics.json").exists():
@@ -337,11 +339,13 @@ class AnalysisState:
         self._coords: "Coords" | None = coords
         self._dims: "Dims" | None = dims
         self._models: List[ModelAnalysisState] = models
-        self._communicate: Dict[
-            str, plt.Figure | pd.DataFrame
-        ] | None = communicate  # plots of findings
+        self._communicate: Dict[str, plt.Figure | pd.DataFrame] | None = (
+            communicate  # plots of findings
+        )
         self._logs: List[str] = logs
-        self._display_stats: Dict[str, Any] = display_stats if display_stats is not None else {}
+        self._display_stats: Dict[str, Any] = (
+            display_stats if display_stats is not None else {}
+        )
 
     @property
     def data(self) -> pd.DataFrame:
@@ -427,17 +431,29 @@ class AnalysisState:
 
         return self._communicate[item_name]
 
+    def _get_unique_name(self, base_name: str) -> str:
+        """Get a unique name by adding a counter if the base name already exists."""
+        if self._communicate is None or base_name not in self._communicate:
+            return base_name
+
+        counter = 1
+        while f"{base_name}_{counter}" in self._communicate:
+            counter += 1
+        return f"{base_name}_{counter}"
+
     def add_plot(self, plot: plt.Figure, plot_name: str) -> None:
         """Add a plot to the communicate."""
         if self._communicate is None:
             self._communicate = {}
-        self._communicate[plot_name] = plot
+        unique_name = self._get_unique_name(plot_name)
+        self._communicate[unique_name] = plot
 
     def add_table(self, table: pd.DataFrame, table_name: str) -> None:
         """Add a table to the communicate."""
         if self._communicate is None:
             self._communicate = {}
-        self._communicate[table_name] = table
+        unique_name = self._get_unique_name(table_name)
+        self._communicate[unique_name] = table
 
     @property
     def logs(self) -> List[str]:
@@ -542,6 +558,13 @@ class AnalysisState:
             engine="pyarrow",  # auto might result in different engines in different setups)
             compression="snappy",
         )
+
+        if self.processed_data is not None:
+            self.processed_data.to_parquet(
+                path / "processed_data.parquet",
+                engine="pyarrow",  # auto might result in different engines in different setups)
+                compression="snappy",
+            )
         if self.features:
             with (path / "features.pkl").open("wb") as fp:
                 pickle.dump(self.features, fp)
@@ -551,17 +574,17 @@ class AnalysisState:
 
         if self.dims is not None:
             _dump_json(self.dims, path / "dims.json")
-        
+
         # Save logs
         if self._logs:
             with (path / "logs.txt").open("w", encoding="utf-8") as fp:
                 for log_entry in self._logs:
                     fp.write(f"{log_entry}\n")
-        
+
         # Save display stats
         if self._display_stats:
             _dump_json(self._display_stats, path / "display_stats.json")
-        
+
         if self._communicate:
             comm_path = path / "communicate"
             _ensure_dir(comm_path)
@@ -592,6 +615,10 @@ class AnalysisState:
             raise FileNotFoundError(path)
 
         data = pd.read_parquet(path / "data.parquet")
+
+        processed_data = None
+        if (path / "processed_data.parquet").exists():
+            processed_data = pd.read_parquet(path / "processed_data.parquet")
 
         # Features
         features = None
@@ -648,6 +675,7 @@ class AnalysisState:
 
         return cls(
             data=data,
+            processed_data=processed_data,
             models=models,
             features=features,
             coords=coords,

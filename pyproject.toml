@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hibayes"
-version = "0.1.0"
+version = "1.0.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -24,6 +24,7 @@ dependencies = [
     "dvc>=3.59.1",
     "dvc-s3>=3.2.2",
     "dill>=0.4.0",
+    "krippendorff>=0.8.1",
 ]
 
 [tool.hatch.metadata]
@@ -39,6 +40,15 @@ packages = ["src/hibayes"]
 dev = ["pytest>=7.0.0", "pytest-cov>=4.0.0", "pytest-mock>=3.10.0", "pre-commit>=4.2.0"]
 gpu = [
     "numpyro[cuda]"
+]
+docs = [
+    "quarto-cli>=1.4.0",
+    "jupyter>=1.0.0",
+    "seaborn>=0.12.0",
+    "scipy>=1.11.0",
+    "plotly>=5.17.0",
+    "bokeh>=3.2.0",
+    "kaleido>=0.2.1"
 ]
 
 [project.scripts]

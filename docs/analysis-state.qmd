@@ -1,0 +1,8 @@
+---
+title: "Analysis State"
+description: "This object flows through the whole hibayes workflow. It stores the data, extracted features, checker and communicator results, fitted models and much more."
+---
+
+## ModelAnalysisState
+
+## AnalysisState

@@ -1,0 +1,270 @@
+---
+title: "HiBayES Use Cases"
+description: "Standard workflows for analyzing model evaluation results"
+---
+
+## Overview
+
+These examples demonstrate standard HiBayES workflows for analyzing model evaluation results across different domains and difficulty levels. Located in `examples/hibayes-usecases/`, they showcase how to combine custom extractors, processors, and multiple model comparisons.
+
+This notebook implements methods from the paper: [**A Hierarchical Bayesian Modeling Framework for AI Evaluation Statistics**](https://arxiv.org/pdf/2505.05602)
+
+## Use Case 1: Domain-Based Analysis
+
+Analyses model performance across different task domains (coding vs reasoning) with varying difficulty levels.
+
+### Purpose
+- Compare model performance across task categories
+- Identify domain-specific strengths and weaknesses
+- Account for task difficulty in performance estimates
+
+### Data Structure
+
+The example includes evaluation results from two models:
+- **Claude Sonnet 3.5**: DS-1000, MBPP, BoolQ, RACE-H
+- **GPT-4o**: Same benchmark suite
+
+Each evaluation is categorized by:
+- **Domain**: coding or reasoning
+- **Difficulty**: easy or hard
+
+### Configuration
+
+```yaml
+data_loader:
+  paths:
+    files_to_process:
+      - ../data/gpt-4o
+
+  extractors:
+    enabled:
+      - base
+    custom:
+      path: ../files/custom_extractor.py
+      classes:
+        - Domains
+```
+
+### Custom Extractor
+
+The domain extractor maps tasks to categories:
+
+```python
+from inspect_ai.log import EvalLog, EvalSample
+
+from hibayes.load import Extractor, extractor
+
+DOMAINS = {
+    "inspect_evals/mbpp": "coding",
+    "DS-1000": "coding",
+    "inspect_evals/boolq": "reasoning",
+    "inspect_evals/race_h": "reasoning",
+}
+
+SUB_DOMAINS = {
+    "inspect_evals/mbpp": "easy",
+    "DS-1000": "hard",
+    "inspect_evals/boolq": "easy",
+    "inspect_evals/race_h": "hard",
+}
+
+
+@extractor
+def domains_extractor(
+    default_domain: str = "other",
+    default_sub_domain: str = "other",
+) -> Extractor:
+    """
+    Extract domain categorisation from evaluation logs.
+
+    Args:
+        default_domain: Default value if domain is not found.
+        default_sub_domain: Default value if sub-domain is not found.
+
+    Returns:
+        An Extractor function that categorises tasks by domain.
+    """
+
+    def extract(sample: EvalSample, eval_log: EvalLog) -> Dict[str, Any]:
+        """Extract domain information from the evaluation log."""
+        task_name = eval_log.eval.task if hasattr(eval_log.eval, "task") else ""
+
+        return {
+            "dataset": task_name,
+            "domain": DOMAINS.get(task_name, default_domain),
+            "sub_domain": SUB_DOMAINS.get(task_name, default_sub_domain),
+        }
+
+    return extract
+```
+
+### Processing Pipeline
+
+```yaml
+data_process:
+  processors:
+    - map_columns: {column_mapping: {domain: group}}
+    - groupby: {groupby_columns: [group]}
+    - extract_features: {feature_names: [n_total]}
+    - extract_predictors: {predictor_names: [group]}
+    - extract_observed_feature: {feature_name: n_correct}
+```
+
+### Model Comparison
+
+The configuration tests multiple models with different prior specifications:
+
+```yaml
+model:
+  models:
+    - name: simplified_group_binomial_exponential
+      config:
+        tag: version_1
+        prior_sigma_group_rate: 0.5
+
+    - name: simplified_group_binomial_exponential
+      config:
+        tag: version_2
+        prior_sigma_group_rate: 1.0
+
+    - name: two_level_group_binomial
+      config:
+        tag: looser_group_prior_1
+        prior_sigma_group_scale: 0.4
+
+    - name: linear_group_binomial
+      config:
+        tag: version_1
+        main_effects: [group]
+```
+
+### Diagnostic Checks
+
+```yaml
+check:
+  checkers:
+    - prior_predictive_plot: {plot_proportion: true, interactive: false}
+    - r_hat
+    - divergences
+    - ess_bulk
+    - ess_tail
+    - loo
+    - bfmi
+    - posterior_predictive_plot: {plot_proportion: true}
+    - waic
+```
+
+### Communication Outputs
+
+```yaml
+communicate:
+  communicators:
+    - forest_plot: {combined: true, best_model: false}
+    - trace_plot: {best_model: false}
+    - summary_table
+    - model_comparison_plot: {ic: waic}
+    - model_comparison_plot: {ic: loo}
+```
+
+## Use Case 2: Three-Level Hierarchical Analysis
+
+Analyses model performance using a three-level hierarchy: models, domains, and sub-domains.
+
+### Purpose
+- Capture variance at multiple hierarchical levels
+- Compare models across nested task categories
+- Test different prior specifications for hierarchical effects
+
+### Data Structure
+
+Uses the same evaluation data as Use Case 1 but with three-level grouping:
+- **Group**: Model (Claude Sonnet 3.5, GPT-4o)
+- **Subgroup**: Domain (coding, reasoning)
+- **Subsubgroup**: Sub-domain (easy, hard)
+
+### Configuration
+
+```yaml
+data_loader:
+  paths:
+    files_to_process:
+      - ../data/
+  extractors:
+    enabled:
+      - base
+    custom:
+      path: ../files/custom_extractor.py
+      classes:
+        - Domains
+```
+
+### Processing Pipeline
+
+Maps columns to three hierarchical levels:
+
+```yaml
+data_process:
+  processors:
+    - map_columns:
+        column_mapping:
+          model: group
+          domain: subgroup
+          sub_domain: subsubgroup
+    - groupby: {groupby_columns: [group, subgroup, subsubgroup]}
+    - extract_features: {feature_names: [n_total]}
+    - extract_predictors: {predictor_names: [group, subgroup, subsubgroup]}
+    - extract_observed_feature: {feature_name: n_correct}
+```
+
+### Model Comparison
+
+Tests three-level hierarchical models with varying priors:
+
+```yaml
+model:
+  models:
+    - name: three_level_group_binomial
+      config:
+        tag: version_1
+        fit: {seed: 0}
+
+    - name: three_level_group_binomial_exponential
+      config:
+        tag: version_1
+        prior_sigma_group_rate: 0.5
+        prior_sigma_subgroup_rate: 0.5
+        prior_sigma_subsubgroup_rate: 0.5
+
+    - name: three_level_group_binomial_exponential
+      config:
+        tag: version_2
+        prior_sigma_group_rate: 1
+        prior_sigma_subgroup_rate: 1
+        prior_sigma_subsubgroup_rate: 1
+
+    - name: three_level_group_binomial_exponential
+      config:
+        tag: version_3
+        prior_sigma_group_rate: 1.5
+        prior_sigma_subgroup_rate: 1.5
+        prior_sigma_subsubgroup_rate: 1.5
+```
+
+### Communication Outputs
+
+Visualises effects at each hierarchical level:
+
+```yaml
+communicate:
+  communicators:
+    - forest_plot: {combined: true, best_model: false}
+    - forest_plot:
+        vars: ["group_effects", "subgroup_effects", "subsubgroup_effects"]
+        combined: true
+        best_model: false
+    - trace_plot: {best_model: false}
+    - summary_table: {best_model: false}
+    - model_comparison_plot
+```
+
+This use case demonstrates hierarchical modelling for nested performance comparisons.

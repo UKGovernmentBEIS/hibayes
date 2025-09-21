@@ -1,0 +1,185 @@
+schema: '2.0'
+stages:
+  load:
+    cmd: hibayes-load --config files/config.yaml --out .output/load/
+    deps:
+    - path: ../../../src/hibayes/load/
+      hash: md5
+      md5: c9f84caf9e4c7dd93e60e11bc2f434e9.dir
+      size: 98139
+      nfiles: 20
+    - path: ../files/custom_extractor.py
+      hash: md5
+      md5: c01f2809ab0c79cb0e4373fb694c304f
+      size: 1287
+    params:
+      files/config.yaml:
+        data_loader:
+          paths:
+            files_to_process:
+            - ../data/
+          extractors:
+            path: ../files/custom_extractor.py
+            enabled:
+            - base_extractor
+            - domains_extractor
+    outs:
+    - path: .output/load/
+      hash: md5
+      md5: a7e64e34a5f989796bf913b266658eb5.dir
+      size: 157458
+      nfiles: 3
+  process:
+    cmd: hibayes-process --config files/config.yaml --analysis-state 
+      .output/load/ --out .output/process/
+    deps:
+    - path: ../../../src/hibayes/process/
+      hash: md5
+      md5: 65911d6ab0efbdc78ce3c72db748ca79.dir
+      size: 37631
+      nfiles: 10
+    - path: .output/load/
+      hash: md5
+      md5: a7e64e34a5f989796bf913b266658eb5.dir
+      size: 157458
+      nfiles: 3
+    params:
+      files/config.yaml:
+        data_process:
+          processors:
+          - map_columns:
+              column_mapping:
+                model: group
+                domain: subgroup
+                sub_domain: subsubgroup
+          - groupby:
+              groupby_columns:
+              - group
+              - subgroup
+              - subsubgroup
+          - extract_features:
+              feature_names:
+              - n_total
+          - extract_predictors:
+              predictor_names:
+              - group
+              - subgroup
+              - subsubgroup
+          - extract_observed_feature:
+              feature_name: n_correct
+    outs:
+    - path: .output/process/
+      hash: md5
+      md5: 6c68cdf7994fad69769938da860acdad.dir
+      size: 157824
+      nfiles: 6
+  model:
+    cmd: hibayes-model --config files/config.yaml --analysis-state 
+      .output/process/ --out .output/model/
+    deps:
+    - path: ../../../src/hibayes/
+      hash: md5
+      md5: d291cb274d8da8fc09743c1a53bbc8e1.dir
+      size: 499335
+      nfiles: 106
+    - path: .output/process/
+      hash: md5
+      md5: 6c68cdf7994fad69769938da860acdad.dir
+      size: 157824
+      nfiles: 6
+    params:
+      files/config.yaml:
+        check:
+          checkers:
+          - prior_predictive_plot:
+              plot_proportion: true
+              interactive: false
+          - r_hat
+          - divergences
+          - ess_bulk
+          - ess_tail
+          - loo
+          - bfmi
+          - posterior_predictive_plot:
+              plot_proportion: true
+              interactive: false
+              plot_kwargs:
+                num_pp_samples: 50
+          - waic
+        model:
+          models:
+          - name: three_level_group_binomial
+            config:
+              tag: version_1
+              fit:
+                seed: 0
+          - name: three_level_group_binomial_exponential
+            config:
+              tag: version_1
+              prior_sigma_group_rate: 0.5
+              prior_sigma_subgroup_rate: 0.5
+              prior_sigma_subsubgroup_rate: 0.5
+              fit:
+                seed: 0
+          - name: three_level_group_binomial_exponential
+            config:
+              tag: version_2
+              prior_sigma_group_rate: 1.5
+              prior_sigma_subgroup_rate: 1.5
+              prior_sigma_subsubgroup_rate: 1.5
+              fit:
+                seed: 0
+          - name: three_level_group_binomial_exponential
+            config:
+              tag: version_3
+              prior_sigma_group_rate: 3
+              prior_sigma_subgroup_rate: 3
+              prior_sigma_subsubgroup_rate: 3
+              fit:
+                seed: 0
+        platform:
+    outs:
+    - path: .output/model/
+      hash: md5
+      md5: 9e4a5fd7c20276a22b841001a2ea6e2d.dir
+      size: 14509072
+      nfiles: 50
+  communicate:
+    cmd: hibayes-comm --config files/config.yaml --analysis-state .output/model/
+      --out .output/communicate/
+    deps:
+    - path: ../../../src/hibayes/
+      hash: md5
+      md5: d291cb274d8da8fc09743c1a53bbc8e1.dir
+      size: 499335
+      nfiles: 106
+    - path: .output/model/
+      hash: md5
+      md5: 9e4a5fd7c20276a22b841001a2ea6e2d.dir
+      size: 14509072
+      nfiles: 50
+    params:
+      files/config.yaml:
+        communicate:
+          communicators:
+          - forest_plot:
+              combined: true
+              best_model: false
+          - forest_plot:
+              vars:
+              - group_effects
+              - subgroup_effects
+              - subsubgroup_effects
+              combined: true
+              best_model: false
+          - trace_plot:
+              best_model: false
+          - summary_table:
+              best_model: false
+          - model_comparison_plot
+    outs:
+    - path: .output/communicate/
+      hash: md5
+      md5: 8b60b9ccf64ff73b6e7fc457d9617d56.dir
+      size: 16388841
+      nfiles: 59

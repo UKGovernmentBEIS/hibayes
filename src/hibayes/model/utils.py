@@ -2,8 +2,12 @@ from typing import Callable
 
 import jax.numpy as jnp
 import numpy as np
+import numpyro
+import numpyro.distributions as dist
 import pandas as pd
 from scipy.stats import norm
+
+from ..process import Features
 
 
 def infer_jax_dtype(pandas_series: pd.Series) -> jnp.dtype:
@@ -50,3 +54,36 @@ def link_to_key(fn: Callable | str, mapping: dict[str, Callable]) -> str:
         if v is fn:
             return k
     raise ValueError(f"Unknown link function {fn!r}")
+
+
+def create_interaction_effects(
+    name1: str, name2: str, features: Features, prior: dist.Distribution
+) -> jnp.ndarray:
+    """Create interaction effects matrix with sum-to-zero constraints."""
+    n1 = features[f"num_{name1}"]
+    n2 = features[f"num_{name2}"]
+
+    if n1 == 1 or n2 == 1:
+        return jnp.zeros((n1, n2))
+
+    # Sample free parameters (excluding last row and column)
+    raw = numpyro.sample(
+        f"{name1}_{name2}_effects_constrained", prior.expand([(n1 - 1) * (n2 - 1)])
+    ).reshape((n1 - 1, n2 - 1))
+
+    # Initialize full matrix
+    b_full = jnp.zeros((n1, n2))
+
+    # Fill in the free parameters
+    b_full = b_full.at[: n1 - 1, : n2 - 1].set(raw)
+
+    # Set last row to satisfy row sum-to-zero constraint
+    b_full = b_full.at[n1 - 1, : n2 - 1].set(
+        -jnp.sum(b_full[: n1 - 1, : n2 - 1], axis=0)
+    )
+
+    # Set last column to satisfy column sum-to-zero constraint
+    b_full = b_full.at[:, n2 - 1].set(-jnp.sum(b_full[:, : n2 - 1], axis=1))
+
+    numpyro.deterministic(f"{name1}_{name2}_effects", b_full)
+    return b_full

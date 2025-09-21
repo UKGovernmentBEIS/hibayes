@@ -1,0 +1,68 @@
+---
+title: "HiBayES"
+subtitle: "Hierarchical Bayesian Modelling Framework for AI Evaluation Statistics"
+---
+
+::: {.hero-section}
+# Welcome to HiBayES
+
+A Python framework for analysing AI evaluation data using hierarchical Bayesian statistical models.
+
+[Get Started](getting-started.qmd){.btn-custom} [View on GitHub](https://github.com/UKGovernmentBEIS/hibayes){.btn-custom}
+:::
+
+## What is HiBayES?
+
+
+HiBayES is a statistical analysis framework designed specifically for [Inspect AI](https://github.com/UKGovernmentBEIS/inspect_ai) evaluation logs. It implements the methodologies from our paper [HiBayES: A Hierarchical Bayesian Modeling Framework for AI Evaluation Statistics](https://arxiv.org/abs/2505.05602), providing researchers with robust tools to:
+
+- **Extract insights** from complex AI evaluation data
+- **Apply sophisticated** hierarchical Bayesian models
+- **Communicate findings** through visualisations and tables
+
+It is intended to be used once the individual has explored and understood the data and candidate statistical models have been proposed. HiBayES helps to productionise the evaluation plan for ease of use in repeated evaluations and ensures appropriate levels of reproducibility and audit.
+
+## Key Features
+
+::: {.feature-grid}
+
+::: {.feature-card}
+### 🔄 Reproducible Pipelines
+Built-in DVC integration ensures your analyses are fully reproducible. Version control your data, code, model fit, diagnostics and results seamlessly.
+:::
+
+::: {.feature-card}
+### 🔌 Extensible Architecture
+Plugin system allows you to add custom extractors, processors, models, and communicators tailored to your domain.
+:::
+
+::: {.feature-card}
+### 🎨 Pallete of useful analysis
+We provide built in methods for common workflows in AI evaluation such as stastical models, recommended health checks and useful plots.
+:::
+
+:::
+
+## Getting Started
+
+Ready to dive in? Check out our [Getting Started Guide](getting-started.qmd) for installation instructions and a tutorial.
+
+## Community & Support
+
+- 📖 Read the [paper](https://arxiv.org/abs/2505.05602) for theoretical background
+- 🐛 Report bugs or request features [GitHub Issues](https://github.com/UKGovernmentBEIS/hibayes/issues)
+- 🤝 Contributions welcome!
+
+## Citation
+
+If you use HiBayES in your research, please cite:
+
+```bibtex
+@article{luettgau2025hibayeshierarchicalbayesianmodeling,
+      title={HiBayES: A Hierarchical Bayesian Modeling Framework for AI Evaluation Statistics},
+      author={Lennart Luettgau and Harry Coppock and Magda Dubois and Christopher Summerfield and Cozmin Ududec},
+      year={2025},
+      archivePrefix={arXiv},
+      url={https://arxiv.org/abs/2505.05602},
+}
+```

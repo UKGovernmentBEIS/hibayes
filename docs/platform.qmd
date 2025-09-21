@@ -1,0 +1,4 @@
+---
+title: "Platform"
+description: "Specify hardware and configuration for fitting."
+---

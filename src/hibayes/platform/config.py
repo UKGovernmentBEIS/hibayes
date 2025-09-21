@@ -25,6 +25,7 @@ class PlatformConfig:
         if self.num_devices is None:
             if self.device_type == "cpu":
                 self.num_devices = os.cpu_count()
+                numpyro.set_host_device_count(self.num_devices)
             elif self.device_type == "gpu":
                 # Set CPU device count BEFORE checking for GPUs
                 # This ensures if we fall back to CPU, the device count is already configured

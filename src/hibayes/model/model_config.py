@@ -27,12 +27,12 @@ LINK_FUNCTION_MAP: Dict[str, Callable[[np.ndarray], np.ndarray]] = {
 @dataclass(frozen=True, slots=True)
 class FitConfig:
     method: Method = "NUTS"
-    samples: int = 4000
-    warmup: int = 500
+    samples: int = 2000
+    warmup: int = 1000
     chains: int = 4
     seed: int = 0
     progress_bar: bool = True
-    target_accept: float = 0.8
+    target_accept: float = 0.95
     max_tree_depth: int = 10
 
     def merged(self, **updates: Any) -> "FitConfig":

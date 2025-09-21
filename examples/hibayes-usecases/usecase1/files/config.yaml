@@ -1,0 +1,68 @@
+data_loader:
+  paths:
+    files_to_process:
+      - ../data/gpt-4o
+
+  extractors:
+    path: ../files/custom_extractor.py
+    enabled:
+      - base_extractor  # Built-in functional extractor
+      - domains_extractor  # Custom functional extractor from the path above
+data_process:
+  processors:
+    - map_columns: {column_mapping: {domain: group}}
+    - groupby: {groupby_columns: [group]}
+    - extract_features: {feature_names: [n_total]}
+    - extract_predictors: {predictor_names: [group]}
+    - extract_observed_feature: {feature_name: n_correct}
+
+model:
+  models:
+    - name: simplified_group_binomial_exponential
+      config:
+        tag: version_2
+        prior_sigma_group_rate: 1.0
+    - name: simplified_group_binomial_exponential
+      config:
+        tag: version_3
+        prior_sigma_group_rate: 1.5
+    - name: simplified_group_binomial_exponential
+      config:
+        tag: version_1
+        prior_sigma_group_rate: 3.0
+    - name: two_level_group_binomial
+      config:
+        tag: version_1
+    - name: two_level_group_binomial
+      config:
+        tag: looser_group_prior_1
+        prior_sigma_group_scale: 0.4
+    - name: two_level_group_binomial
+      config:
+        tag: looser_group_prior_2
+        prior_sigma_group_scale: 0.6
+    - name: linear_group_binomial
+      config:
+        tag: version_1
+        main_effects: [group]
+
+
+platform:
+check:
+  checkers:
+    - prior_predictive_plot: {plot_proportion: true, interactive: false}
+    - r_hat
+    - divergences
+    - ess_bulk
+    - ess_tail
+    - loo
+    - bfmi
+    - posterior_predictive_plot: {plot_proportion: true, plot_kwargs: {num_pp_samples: 50}, interactive: false}
+    - waic
+communicate:
+  communicators:
+    - forest_plot: {combined: true, best_model: false}
+    - trace_plot: {best_model: false}
+    - summary_table
+    - model_comparison_plot: {ic: waic}
+    - model_comparison_plot: {ic: loo}

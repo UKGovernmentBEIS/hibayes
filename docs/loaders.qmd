@@ -1,0 +1,90 @@
+---
+title: "Data Loaders"
+description: "Loading and extracting data from Inspect AI evaluation logs"
+---
+
+To extract data from Inspect logs Hibayes applys a series of extractors to the loaded eval logs.
+
+## Extractors
+
+Extractors define how and what you would like to extract from Inspect logs. Here is an example default extractor which extracts the default Inspect fields:
+
+```python
+@extractor # <1>
+def base_extractor() -> Extractor:
+    """
+    Extract basic metadata from evaluation samples.
+
+    Returns:
+        An Extractor function that extracts basic metadata.
+    """
+
+    def extract(sample: EvalSample, eval_log: EvalLog) -> Dict[str, Any]: # <2>
+        """Extract basic metadata from a sample."""
+        model_name_raw = eval_log.eval.model
+        model_name = (
+            model_name_raw.split("/")[-1] if "/" in model_name_raw else model_name_raw
+        )
+
+        # Normalize score
+        score_value = next(iter(sample.scores.values())).value
+        if score_value == "I":
+            score = 0.0
+        elif score_value == "C":
+            score = 1.0
+        else:
+            score = float(score_value)
+
+        # Record the log file path this sample came from
+        log_path = eval_log.location
+
+        return {
+            "score": score,
+            "target": str(sample.target),
+            "model": model_name,
+            "model_raw": model_name_raw,
+            "dataset": eval_log.eval.dataset.name,
+            "task": str(sample.id),
+            "epoch": sample.epoch,
+            "num_messages": len(sample.messages),
+            "log_path": log_path,
+        }
+
+    return extract
+```
+1. **Registration** Each extractor is registered so that it can be accessed simply by specifying its name as a str. It also enforces an agreed upon interface.
+2. **Interface** Each extractor takes the inspect log sample and log as an arg and returns a dic of values. Each sample yields 1 row in the hibayes dataframe.
+
+
+## Defining your own extractor
+It is common to need to extract bespoke information from Inspect logs. Here we define a custom extractor:
+
+```python
+from hibayes.load import Extractor, extractor
+
+@extractor
+def your_custom_extractor(
+    keyword: str
+):
+    def extract(sample, eval_log):
+        return {f"contains_{keyword}": if any(keyword in msg.content for msg in sample.messsages)}
+
+    return extract
+
+```
+
+This can then be called in your config file:
+
+```yaml
+data_loader:
+  paths:
+    files_to_process:
+      - path/to/logs
+  extractors:
+    paths: path/to/above/python/file.py
+    enabled:
+      - base_extractor  # <1>
+      - your_custom_extractor: {keyword: refuse} # <2>
+```
+1. calling the base extractor (this does not need the paths arg)
+2. here we call our custom extractor and pass the required arg.

@@ -410,12 +410,12 @@ class TestFitConfig:
         config = FitConfig()
 
         assert config.method == "NUTS"
-        assert config.samples == 4000
-        assert config.warmup == 500
+        assert config.samples == 2000
+        assert config.warmup == 1000
         assert config.chains == 4
         assert config.seed == 0
         assert config.progress_bar is True
-        assert config.target_accept == 0.8
+        assert config.target_accept == 0.95
         assert config.max_tree_depth == 10
 
     def test_fit_config_custom_values(self):
@@ -670,15 +670,15 @@ class TestFitFunction:
         # Verify NUTS kernel was created with correct parameters
         mock_nuts.assert_called_once_with(
             model_state.model,
-            target_accept_prob=0.8,
+            target_accept_prob=0.95,
             max_tree_depth=10,
         )
 
         # Verify MCMC was configured correctly
         mock_mcmc.assert_called_once_with(
             mock_kernel,
-            num_samples=4000,
-            num_warmup=500,
+            num_samples=2000,
+            num_warmup=1000,
             num_chains=4,
             progress_bar=True,
             chain_method="parallel",

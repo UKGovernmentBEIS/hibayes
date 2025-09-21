@@ -76,23 +76,10 @@ def configure_computation_platform(
                     f"Note: Could not update host device count (may already be set): {e}"
                 )
 
-        # Verify device configuration
-        current_devices = jax.devices()
-        display.update_logs(
-            f"Active devices: {len(current_devices)} {platform_config.device_type.upper()}(s)"
-        )
-
-        # Validate expected vs actual device count for CPU
-        if platform_config.device_type == "cpu":
-            assert platform_config.num_devices == jax.device_count(), (
-                f"Mismatch in config device count {platform_config.num_devices} and actual jax device count {jax.device_count()}"
-            )
-
     except Exception as e:
         display.update_logs(
             f"Failed to configure {platform_config.device_type.upper()}: {str(e)}"
         )
-        display.update_logs("Falling back to CPU execution")
 
         # Fallback to CPU
         # Note: If we're here due to GPU failure from PlatformConfig,

@@ -1,0 +1,67 @@
+data_loader:
+  paths:
+    files_to_process:
+      - ../data/
+  extractors:
+    path: ../files/custom_extractor.py
+    enabled:
+      - base_extractor  # Built-in functional extractor
+      - domains_extractor  # Custom functional extractor from the path above
+data_process:
+  processors:
+    - map_columns: {column_mapping: {model: group, domain: subgroup, sub_domain: subsubgroup}}
+    - groupby: {groupby_columns: [group, subgroup, subsubgroup]}
+    - extract_features: {feature_names: [n_total]}
+    - extract_predictors: {predictor_names: [group, subgroup, subsubgroup]}
+    - extract_observed_feature: {feature_name: n_correct}
+
+model:
+  models:
+    - name: three_level_group_binomial
+      config:
+        tag: version_1
+        fit: {seed: 0}
+
+    - name: three_level_group_binomial_exponential
+      config:
+        tag: version_1
+        prior_sigma_group_rate: 0.5
+        prior_sigma_subgroup_rate: 0.5
+        prior_sigma_subsubgroup_rate: 0.5
+        fit: {seed: 0}
+
+    - name: three_level_group_binomial_exponential
+      config:
+        tag: version_2
+        prior_sigma_group_rate: 1.5
+        prior_sigma_subgroup_rate: 1.5
+        prior_sigma_subsubgroup_rate: 1.5
+        fit: {seed: 0}
+
+    - name: three_level_group_binomial_exponential
+      config:
+        tag: version_3
+        prior_sigma_group_rate: 3
+        prior_sigma_subgroup_rate: 3
+        prior_sigma_subsubgroup_rate: 3
+        fit: {seed: 0}
+
+platform:
+check:
+  checkers:
+    - prior_predictive_plot: {plot_proportion: true, interactive: false}
+    - r_hat
+    - divergences
+    - ess_bulk
+    - ess_tail
+    - loo
+    - bfmi
+    - posterior_predictive_plot: {plot_proportion: true, interactive: false, plot_kwargs: {num_pp_samples: 50}}
+    - waic
+communicate:
+  communicators:
+    - forest_plot: {combined: true, best_model: false}
+    - forest_plot: {vars: ["group_effects", "subgroup_effects", "subsubgroup_effects"], combined: true, best_model: false}
+    - trace_plot: {best_model: false}
+    - summary_table: {best_model: false}
+    - model_comparison_plot
