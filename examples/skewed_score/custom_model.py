@@ -83,19 +83,18 @@ def hierarchical_ordered_logistic_model(
         eta = intercept
         filtered_main_effects = [e for e in (main_effects or []) if e != "grader"]
 
-        # Sample explicit means for grader types
-        type_0_mean = numpyro.sample("grader_type_0_mean", prior_h_mean_type)
-        type_1_mean = numpyro.sample("grader_type_1_mean", prior_h_mean_type)
+        # Get number of grader types
+        n_grader_types = features["num_grader_type"]
 
-        # Create a vector of means indexed by type
-        grader_type_means = jnp.array([type_0_mean, type_1_mean])
+        # Sample means for each grader type
+        grader_type_means = numpyro.sample(
+            "grader_type_means", prior_h_mean_type.expand([n_grader_types])
+        )
 
         # Sample type-specific standard deviations
-        sigma_type_0 = numpyro.sample("grader_type_0_sigma", prior_h_sigma_type)
-        sigma_type_1 = numpyro.sample("grader_type_1_sigma", prior_h_sigma_type)
-
-        # Create vector of sigmas indexed by type
-        grader_type_sigmas = jnp.array([sigma_type_0, sigma_type_1])
+        grader_type_sigmas = numpyro.sample(
+            "grader_type_sigmas", prior_h_sigma_type.expand([n_grader_types])
+        )
 
         # Get grader and type indices
         grader_indices = features["grader_index"]
@@ -122,8 +121,11 @@ def hierarchical_ordered_logistic_model(
         grader_effects = grader_means + grader_sigmas * raw_effects
         numpyro.deterministic("grader_effects", grader_effects)
 
-        # Save the difference between type 1 and type 0 means
-        numpyro.deterministic("type_1_vs_type_0", type_1_mean - type_0_mean)
+        # Save pairwise differences between grader types (for interpretability)
+        # This creates a matrix of differences: type_i - type_j
+        if n_grader_types > 1:
+            type_diffs = grader_type_means[:, None] - grader_type_means[None, :]
+            numpyro.deterministic("grader_type_differences", type_diffs)
 
         # Add grader effect to linear predictor
         eta += grader_effects[grader_indices]
