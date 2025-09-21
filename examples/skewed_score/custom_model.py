@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import jax.numpy as jnp
 import numpyro
@@ -208,5 +208,183 @@ def hierarchical_ordered_logistic_model(
 
         # Likelihood
         numpyro.sample("obs", dist.OrderedLogistic(eta, cutpoints), obs=features["obs"])
+
+    return model
+
+
+@model
+def pairwise_logistic_model(
+    main_effects: Optional[List[str]] = None,
+    interactions: Optional[List[Tuple[str, str]]] = None,
+    effect_coding_for_main_effects: bool = True,
+    # Priors
+    prior_intercept_loc: float = 0.0,
+    prior_intercept_scale: float = 1.0,
+    prior_main_effects_loc: float = 0.0,
+    prior_main_effects_scale: float = 1.0,
+    prior_interaction_loc: float = 0.0,
+    prior_interaction_scale: float = 1.0,
+    # Grader-specific length slope hyperpriors (used iff "length_diff" in main_effects)
+    prior_length_slope_mean_loc: float = 0.0,
+    prior_length_slope_mean_scale: float = 0.5,
+    prior_length_slope_sigma_scale: float = 1.0,
+) -> Model:
+    """
+    Binary (pairwise) logistic regression with:
+      - Intercept
+      - LLM-pair effect
+      - Grader effect
+      - Optional grader-specific slope for a numeric covariate 'length_diff'
+      - Optional additional main effects (effect-coded or dummy)
+      - Optional pairwise interactions via create_interaction_effects
+
+    Likelihood: Bernoulli with logits link.
+    """
+
+    def model(features: Features) -> None:
+        #  Required features
+        required = [
+            "obs",  # binary outcomes (0/1)
+            "llm_pair_index",
+            "num_llm_pair",
+            "grader_index",
+            "num_grader",
+        ]
+
+        # Optional numeric covariate used in the original: length_diff
+        filtered_main = list(main_effects or [])
+        uses_length_diff = "length_diff" in filtered_main
+        if uses_length_diff:
+            required.append("length_diff")
+            # do not treat 'length_diff' as a categorical main effect
+            filtered_main = [e for e in filtered_main if e != "length_diff"]
+
+        # Add requirements for any additional categorical main effects
+        for effect in filtered_main:
+            required.extend([f"{effect}_index", f"num_{effect}"])
+
+        # Add requirements for interactions
+        if interactions:
+            for v1, v2 in interactions:
+                if v1 not in ["length_diff"]:
+                    required.extend([f"{v1}_index", f"num_{v1}"])
+                if v2 not in ["length_diff"]:
+                    required.extend([f"{v2}_index", f"num_{v2}"])
+                # If either is 'length_diff', we’ll treat it as numeric below.
+
+        check_features(features, required)
+
+        #  Priors
+        prior_intercept = dist.Normal(prior_intercept_loc, prior_intercept_scale)
+        prior_main = dist.Normal(prior_main_effects_loc, prior_main_effects_scale)
+        prior_inter = dist.Normal(prior_interaction_loc, prior_interaction_scale)
+
+        #  Intercept
+        intercept = numpyro.sample("intercept", prior_intercept)
+        eta = intercept
+
+        # #  LLM-pair effect (categorical)
+        # n_pairs = features["num_llm_pair"]
+        # pair_idx = features["llm_pair_index"]
+        # if effect_coding_for_main_effects and n_pairs > 1:
+        #     free = numpyro.sample(
+        #         "llm_pair_effects_constrained", prior_main.expand([n_pairs - 1])
+        #     )
+        #     last = -jnp.sum(free)
+        #     llm_pair_effects = jnp.concatenate([free, jnp.array([last])])
+        #     numpyro.deterministic("llm_pair_effects", llm_pair_effects)
+        # else:
+        #     llm_pair_effects = numpyro.sample(
+        #         "llm_pair_effects", prior_main.expand([n_pairs])
+        #     )
+        # eta = eta + llm_pair_effects[pair_idx]
+
+        # #  Grader effect (categorical, non-hierarchical like original)
+        # n_graders = features["num_grader"]
+        # grader_idx = features["grader_index"]
+        # if effect_coding_for_main_effects and n_graders > 1:
+        #     free = numpyro.sample(
+        #         "grader_effects_constrained", prior_main.expand([n_graders - 1])
+        #     )
+        #     last = -jnp.sum(free)
+        #     grader_effects = jnp.concatenate([free, jnp.array([last])])
+        #     numpyro.deterministic("grader_effects", grader_effects)
+        # else:
+        #     grader_effects = numpyro.sample(
+        #         "grader_effects", prior_main.expand([n_graders])
+        #     )
+        # eta = eta + grader_effects[grader_idx]
+
+        #  Optional grader-specific slope for numeric 'length_diff'
+        if uses_length_diff:
+            length_slope_mean = numpyro.sample(
+                "length_slope_mean",
+                dist.Normal(prior_length_slope_mean_loc, prior_length_slope_mean_scale),
+            )
+            sigma_slope = numpyro.sample(
+                "length_slope_sigma", dist.HalfNormal(prior_length_slope_sigma_scale)
+            )
+            grader_length_slopes = numpyro.sample(
+                "grader_length_slopes",
+                dist.Normal(length_slope_mean, sigma_slope)
+                .expand([features["num_grader"]])
+                .to_event(1),
+            )
+            length_diff = features["length_diff"]
+            eta = eta + grader_length_slopes[features["grader_index"]] * length_diff
+
+        #  Additional main effects (categorical)
+        for effect in filtered_main:
+            n_levels = features[f"num_{effect}"]
+            idx = features[f"{effect}_index"]
+            if effect_coding_for_main_effects and n_levels > 1:
+                free = numpyro.sample(
+                    f"{effect}_effects_constrained", prior_main.expand([n_levels - 1])
+                )
+                last = -jnp.sum(free)
+                coefs = jnp.concatenate([free, jnp.array([last])])
+                numpyro.deterministic(f"{effect}_effects", coefs)
+            else:
+                coefs = numpyro.sample(
+                    f"{effect}_effects", prior_main.expand([n_levels])
+                )
+            eta = eta + coefs[idx]
+
+        #  Interactions
+        if interactions:
+            for var1, var2 in interactions:
+                # Numeric × categorical: allow length_diff in either slot
+                if var1 == "length_diff" and var2 != "length_diff":
+                    idx2 = features[f"{var2}_index"]
+                    n2 = features[f"num_{var2}"]
+                    # one slope per level of var2
+                    slopes = numpyro.sample(
+                        f"length_diff_x_{var2}", prior_inter.expand([n2])
+                    )
+                    eta = eta + slopes[idx2] * features["length_diff"]
+
+                elif var2 == "length_diff" and var1 != "length_diff":
+                    idx1 = features[f"{var1}_index"]
+                    n1 = features[f"num_{var1}"]
+                    slopes = numpyro.sample(
+                        f"{var1}_x_length_diff", prior_inter.expand([n1])
+                    )
+                    eta = eta + slopes[idx1] * features["length_diff"]
+
+                elif var1 != "length_diff" and var2 != "length_diff":
+                    # Categorical × categorical via helper (sum-to-zero constrained)
+                    interaction_matrix = create_interaction_effects(
+                        var1, var2, features, prior_inter
+                    )
+                    i1 = features[f"{var1}_index"]
+                    i2 = features[f"{var2}_index"]
+                    eta = eta + interaction_matrix[i1, i2]
+                else:
+                    raise ValueError(
+                        "Cannot have length_diff x length_diff interaction"
+                    )
+
+        #  Likelihood (Bernoulli with logits)
+        numpyro.sample("obs", dist.Bernoulli(logits=eta), obs=features["obs"])
 
     return model

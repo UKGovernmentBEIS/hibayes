@@ -1,0 +1,121 @@
+schema: '2.0'
+stages:
+  process:
+    cmd: hibayes-process --config files/config.yaml --data data/data.csv --out 
+      .output/process/
+    deps:
+    - path: ../../../src/hibayes/
+      hash: md5
+      md5: e1ea6d39953a935bc454f040e35380db.dir
+      size: 498066
+      nfiles: 104
+    - path: data/data.csv
+      hash: md5
+      md5: 629b340763529be066dc64936b980476
+      size: 40304
+    params:
+      files/config.yaml:
+        data_process:
+          path: ../custom_processors.py
+          processors:
+          - extract_observed_feature:
+              feature_name: first_is_chosen
+          - extract_predictors:
+              predictor_names:
+              - llm_pair
+              - grader
+              effect_coding_for_main_effects: true
+              interactions: true
+          - extract_features:
+              feature_names:
+              - length_diff
+              standardise: true
+    outs:
+    - path: .output/process/
+      hash: md5
+      md5: 469f19c142d31648487559badf152e53.dir
+      size: 37803
+      nfiles: 7
+  model:
+    cmd: hibayes-model --config files/config.yaml --analysis-state 
+      .output/process/ --out .output/model/
+    deps:
+    - path: ../../../src/hibayes/
+      hash: md5
+      md5: e1ea6d39953a935bc454f040e35380db.dir
+      size: 498066
+      nfiles: 104
+    - path: .output/process/
+      hash: md5
+      md5: 469f19c142d31648487559badf152e53.dir
+      size: 37803
+      nfiles: 7
+    params:
+      files/config.yaml:
+        check:
+          checkers:
+          - prior_predictive_plot
+          - divergences
+          - r_hat
+          - ess_bulk
+          - ess_tail
+          - posterior_predictive_plot
+          - waic
+        model:
+          path: ../custom_model.py
+          models:
+          - name: pairwise_logistic_model
+            config:
+              tag: with_length_diff
+              main_effects:
+              - llm_pair
+              - grader
+              - length_diff
+              effect_coding_for_main_effects: true
+          - name: pairwise_logistic_model
+            config:
+              tag: without_length_diff
+              main_effects:
+              - llm_pair
+              - grader
+              effect_coding_for_main_effects: true
+    outs:
+    - path: .output/model/
+      hash: md5
+      md5: 5799f85a5202fdee0dca28062c6993d8.dir
+      size: 29371759
+      nfiles: 29
+  communicate:
+    cmd: hibayes-comm --config files/config.yaml --analysis-state .output/model/
+      --out .output/communicate/
+    deps:
+    - path: ../../../src/hibayes/
+      hash: md5
+      md5: e1ea6d39953a935bc454f040e35380db.dir
+      size: 498066
+      nfiles: 104
+    - path: .output/model/
+      hash: md5
+      md5: 5799f85a5202fdee0dca28062c6993d8.dir
+      size: 29371759
+      nfiles: 29
+    params:
+      files/config.yaml:
+        communicate:
+          path: ../custom_communicators.py
+          communicators:
+          - forest_plot:
+              vars:
+              - grader_effects
+              - llm_pair_effects
+              - grader_length_slopes
+              combined: true
+              vertical_line: 0
+          - summary_table
+          - model_comparison_plot
+    outs:
+    - path: .output/communicate/
+      hash: md5
+      md5: 323c932c43dc384e3b43bdf0b7f305dc.dir
+      size: 29095815
+      nfiles: 28
