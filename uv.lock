@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -1466,6 +1466,7 @@ dependencies = [
     { name = "fastparquet" },
     { name = "inspect-ai" },
     { name = "jax" },
+    { name = "krippendorff" },
     { name = "matplotlib" },
     { name = "numpyro" },
     { name = "pandas" },
@@ -1508,6 +1509,7 @@ requires-dist = [
     { name = "jax", specifier = ">=0.5.3" },
     { name = "jupyter", marker = "extra == 'docs'", specifier = ">=1.0.0" },
     { name = "kaleido", marker = "extra == 'docs'", specifier = ">=0.2.1" },
+    { name = "krippendorff", specifier = ">=0.8.1" },
     { name = "matplotlib", specifier = ">=3.10.1" },
     { name = "numpyro", specifier = ">=0.18.0" },
     { name = "numpyro", extras = ["cuda"], marker = "extra == 'gpu'" },
@@ -2279,6 +2281,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/0f/d3/5ff936d8319ac86b9c409f1501b07c426e6ad41966fedace9ef1b966e23f/kombu-5.5.4.tar.gz", hash = "sha256:886600168275ebeada93b888e831352fe578168342f0d1d5833d88ba0d847363", size = 461992, upload-time = "2025-06-01T10:19:22.281Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ef/70/a07dcf4f62598c8ad579df241af55ced65bed76e42e45d3c368a6d82dbc1/kombu-5.5.4-py3-none-any.whl", hash = "sha256:a12ed0557c238897d8e518f1d1fdf84bd1516c5e305af2dacd85c2015115feb8", size = 210034, upload-time = "2025-06-01T10:19:20.436Z" },
+]
+
+[[package]]
+name = "krippendorff"
+version = "0.8.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ce/fc/a216ab428e10357fda0cea2d56e9a3728feecb54e32af6cd7e1f894d39e3/krippendorff-0.8.1.tar.gz", hash = "sha256:a8f73d87411a69b2ada62ce60573e1b99388bb084c8c0fa7b4d3598edcf3c0be", size = 24160, upload-time = "2025-01-15T05:00:44.567Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/4f/019ebcd010b4e8bba59db099462155d78d928652b99958b10fcac700c4c5/krippendorff-0.8.1-py3-none-any.whl", hash = "sha256:afd9ba1adf8866f567abb643312aedc92d39b5b8612f99b68998508e3591c437", size = 18182, upload-time = "2025-01-15T05:00:42.197Z" },
 ]
 
 [[package]]

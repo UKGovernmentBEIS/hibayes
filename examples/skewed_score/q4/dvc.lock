@@ -6,13 +6,13 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: 30e766c40e7c7af0d39d6dbeddfa5299.dir
-      size: 496302
+      md5: 4f4ca5425dd77a44fac398eed19689a8.dir
+      size: 496355
       nfiles: 104
     - path: data/data.csv
       hash: md5
-      md5: db4cf590eaa3a02944718713985144b6
-      size: 19380
+      md5: 4329c23a9f381e18b7c0dd09d59745e4
+      size: 12442
     params:
       files/config.yaml:
         data_process:
@@ -31,13 +31,14 @@ stages:
               - grader
               - grader_type
               - LLM
+              - item
               effect_coding_for_main_effects: true
               interactions: true
     outs:
     - path: .output/process/
       hash: md5
-      md5: c83aadd68a48f853216cb7abe0314398.dir
-      size: 27284
+      md5: a531f8a723b5d99e193520d09db3a4ea.dir
+      size: 24142
       nfiles: 7
   model:
     cmd: hibayes-model --config files/config.yaml --analysis-state 
@@ -45,13 +46,13 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: 30e766c40e7c7af0d39d6dbeddfa5299.dir
-      size: 496302
+      md5: 4f4ca5425dd77a44fac398eed19689a8.dir
+      size: 496355
       nfiles: 104
     - path: .output/process/
       hash: md5
-      md5: c83aadd68a48f853216cb7abe0314398.dir
-      size: 27284
+      md5: a531f8a723b5d99e193520d09db3a4ea.dir
+      size: 24142
       nfiles: 7
     params:
       files/config.yaml:
@@ -72,63 +73,33 @@ stages:
               tag: version_1
               main_effects:
               - grader
-              - grader_type
+              - item
               - LLM
               interactions:
               - - grader
-                - LLM
+                - item
               num_classes: 11
               effect_coding_for_main_effects: true
-              fit:
-                samples: 2000
-                chains: 4
-          - name: ordered_logistic_model
-            config:
-              tag: version_2
-              main_effects:
-              - grader
-              - grader_type
-              - LLM
-              num_classes: 11
-              effect_coding_for_main_effects: true
-              fit:
-                samples: 2000
-                chains: 4
-          - name: hierarchical_ordered_logistic_model
-            config:
-              tag: version_1
-              main_effects:
-              - LLM
-              - grader
-              - grader_type
-              interactions:
-              - - grader
-                - LLM
-              num_classes: 11
-              effect_coding_for_main_effects: true
-              fit:
-                samples: 2000
-                chains: 4
     outs:
     - path: .output/model/
       hash: md5
-      md5: 48fcb4677e799f7bf39131d78a16d3dd.dir
-      size: 44664200
-      nfiles: 39
+      md5: cac5f2b06d50f76ffb8695de61094f48.dir
+      size: 12592144
+      nfiles: 18
   communicate:
     cmd: hibayes-comm --config files/config.yaml --analysis-state .output/model/
       --out .output/communicate/
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: 30e766c40e7c7af0d39d6dbeddfa5299.dir
-      size: 496302
+      md5: 4f4ca5425dd77a44fac398eed19689a8.dir
+      size: 496355
       nfiles: 104
     - path: .output/model/
       hash: md5
-      md5: 48fcb4677e799f7bf39131d78a16d3dd.dir
-      size: 44664200
-      nfiles: 39
+      md5: cac5f2b06d50f76ffb8695de61094f48.dir
+      size: 12592144
+      nfiles: 18
     params:
       files/config.yaml:
         communicate:
@@ -141,7 +112,8 @@ stages:
               vars:
               - grader_effects
               - LLM_effects
-              - grader_type_effects
+              - item_effects
+              - grader_item_effects
               combined: true
               vertical_line: 0
           - forest_plot:
@@ -152,9 +124,10 @@ stages:
               vertical_line: 0
           - summary_table
           - model_comparison_plot
+          - krippendorff_alpha
     outs:
     - path: .output/communicate/
       hash: md5
-      md5: 95be273c1aa549257438faa6e347eb20.dir
-      size: 45152661
-      nfiles: 43
+      md5: d3637d8f926ab465909bf96deb463fc4.dir
+      size: 13365429
+      nfiles: 22

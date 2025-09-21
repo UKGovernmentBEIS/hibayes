@@ -24,6 +24,7 @@ dependencies = [
     "dvc>=3.59.1",
     "dvc-s3>=3.2.2",
     "dill>=0.4.0",
+    "krippendorff>=0.8.1",
 ]
 
 [tool.hatch.metadata]

@@ -54,7 +54,6 @@ communicate:
     - ordered_residuals_plot
     - category_frequency_plot
     - forest_plot: {vars: ["grader_effects", "LLM_effects", "grader_type_effects"], combined: true, vertical_line: 0}
-    - forest_plot: {vars: ["LLM_effects", "grader_type_0_mean", "grader_type_1_mean", "grader_raw_effects"], combined: true, figsize: [10,10], vertical_line: 0}
     - forest_plot: {combined: true, figsize: [10,10], vertical_line: 0}
     - summary_table
     - model_comparison_plot

@@ -1,0 +1,38 @@
+data_process:
+  path: ../custom_processors.py
+  processors:
+    - add_categorical_column: {new_column: grader_type, source_column: grader, mapping_rules: {Human: human}, default_value: model}
+    - extract_observed_feature: {feature_name: score} # 0-10 rating
+    - extract_predictors: {predictor_names: [grader, grader_type, LLM, item], effect_coding_for_main_effects: true, interactions: true}
+
+model:
+  path: ../custom_model.py
+  models:
+    - name: ordered_logistic_model
+      config:
+        tag: version_1
+        main_effects: ["grader", "item", "LLM"]
+        interactions: [["grader", "item"]]
+        num_classes: 11  # for 0-10 scale
+        effect_coding_for_main_effects: true
+check:
+  checkers:
+    - prior_predictive_plot
+    - divergences
+    - r_hat
+    - ess_bulk
+    - ess_tail
+    - posterior_predictive_plot
+    - waic
+
+communicate:
+  path: ../custom_communicators.py
+  communicators:
+    - cutpoint_plot
+    - ordered_residuals_plot
+    - category_frequency_plot
+    - forest_plot: {vars: ["grader_effects", "LLM_effects", "item_effects", "grader_item_effects"], combined: true, vertical_line: 0}
+    - forest_plot: {combined: true, figsize: [10,10], vertical_line: 0}
+    - summary_table
+    - model_comparison_plot
+    - krippendorff_alpha
