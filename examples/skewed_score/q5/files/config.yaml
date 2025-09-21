@@ -1,5 +1,4 @@
 data_process:
-  path: ../custom_processors.py
   processors:
     - extract_observed_feature: {feature_name: first_is_chosen} # binary outcome
     - extract_predictors: {predictor_names: ['llm_pair', 'grader'], effect_coding_for_main_effects: true, interactions: true}
@@ -20,12 +19,12 @@ model:
         effect_coding_for_main_effects: true
 check:
   checkers:
-    - prior_predictive_plot
+    - prior_predictive_plot: {interactive: false}
     - divergences
     - r_hat
     - ess_bulk
     - ess_tail
-    - posterior_predictive_plot
+    - posterior_predictive_plot: {interactive: false}
     - waic
 
 communicate:

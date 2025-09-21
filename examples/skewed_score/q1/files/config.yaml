@@ -4,7 +4,6 @@ data_process:
     - extract_predictors: {predictor_names: [grader], effect_coding_for_main_effects: true}
 
 model:
-  path: ../custom_model.py
   models:
     - name: ordered_logistic_model
       config:

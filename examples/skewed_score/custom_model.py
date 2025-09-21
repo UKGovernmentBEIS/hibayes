@@ -88,7 +88,7 @@ def hierarchical_ordered_logistic_model(
 
         # Sample means for each grader type
         grader_type_means = numpyro.sample(
-            "grader_type_means", prior_h_mean_type.expand([n_grader_types])
+            "grader_type_effects", prior_h_mean_type.expand([n_grader_types])
         )
 
         # Sample type-specific standard deviations
@@ -282,38 +282,6 @@ def pairwise_logistic_model(
         #  Intercept
         intercept = numpyro.sample("intercept", prior_intercept)
         eta = intercept
-
-        # #  LLM-pair effect (categorical)
-        # n_pairs = features["num_llm_pair"]
-        # pair_idx = features["llm_pair_index"]
-        # if effect_coding_for_main_effects and n_pairs > 1:
-        #     free = numpyro.sample(
-        #         "llm_pair_effects_constrained", prior_main.expand([n_pairs - 1])
-        #     )
-        #     last = -jnp.sum(free)
-        #     llm_pair_effects = jnp.concatenate([free, jnp.array([last])])
-        #     numpyro.deterministic("llm_pair_effects", llm_pair_effects)
-        # else:
-        #     llm_pair_effects = numpyro.sample(
-        #         "llm_pair_effects", prior_main.expand([n_pairs])
-        #     )
-        # eta = eta + llm_pair_effects[pair_idx]
-
-        # #  Grader effect (categorical, non-hierarchical like original)
-        # n_graders = features["num_grader"]
-        # grader_idx = features["grader_index"]
-        # if effect_coding_for_main_effects and n_graders > 1:
-        #     free = numpyro.sample(
-        #         "grader_effects_constrained", prior_main.expand([n_graders - 1])
-        #     )
-        #     last = -jnp.sum(free)
-        #     grader_effects = jnp.concatenate([free, jnp.array([last])])
-        #     numpyro.deterministic("grader_effects", grader_effects)
-        # else:
-        #     grader_effects = numpyro.sample(
-        #         "grader_effects", prior_main.expand([n_graders])
-        #     )
-        # eta = eta + grader_effects[grader_idx]
 
         #  Optional grader-specific slope for numeric 'length_diff'
         if uses_length_diff:

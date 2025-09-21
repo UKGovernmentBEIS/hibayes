@@ -6,9 +6,9 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: a645ad8fe2e3da6baa3510f92c66422b.dir
-      size: 476765
-      nfiles: 106
+      md5: f2b14730045e9246b7606628eb9c9590.dir
+      size: 497741
+      nfiles: 104
     - path: data/data.csv
       hash: md5
       md5: 04faa228fd6fa8cfec4b4c0d0bfad182
@@ -28,36 +28,37 @@ stages:
     outs:
     - path: .output/process/
       hash: md5
-      md5: d49859afd58243db18f0f60fc785a7d8.dir
-      size: 11300
-      nfiles: 6
+      md5: 4e098af585141eef8bd9da19dfdc1b7a.dir
+      size: 14559
+      nfiles: 7
   model:
     cmd: hibayes-model --config files/config.yaml --analysis-state 
       .output/process/ --out .output/model/
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: e4dd867901c0019fa10400aee01d4197.dir
-      size: 476940
-      nfiles: 106
+      md5: f2b14730045e9246b7606628eb9c9590.dir
+      size: 497741
+      nfiles: 104
     - path: .output/process/
       hash: md5
-      md5: d49859afd58243db18f0f60fc785a7d8.dir
-      size: 11300
-      nfiles: 6
+      md5: 4e098af585141eef8bd9da19dfdc1b7a.dir
+      size: 14559
+      nfiles: 7
     params:
       files/config.yaml:
         check:
           checkers:
-          - prior_predictive_plot
+          - prior_predictive_plot:
+              interactive: false
           - divergences
           - r_hat
           - ess_bulk
           - ess_tail
-          - posterior_predictive_plot
+          - posterior_predictive_plot:
+              interactive: false
           - waic
         model:
-          path: ../custom_model.py
           models:
           - name: ordered_logistic_model
             config:
@@ -87,23 +88,23 @@ stages:
     outs:
     - path: .output/model/
       hash: md5
-      md5: 9cdcf50096345b352675f0b66f313449.dir
-      size: 17277505
-      nfiles: 28
+      md5: 07f804b2cd316d137abf039409950128.dir
+      size: 17254865
+      nfiles: 29
   communicate:
-    cmd: hibayes-comm --config files/config.yaml --analysis_state .output/model/
+    cmd: hibayes-comm --config files/config.yaml --analysis-state .output/model/
       --out .output/communicate/
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: 10e11e518e7f18de789149e3eb33991d.dir
-      size: 450084
-      nfiles: 106
+      md5: f2b14730045e9246b7606628eb9c9590.dir
+      size: 497741
+      nfiles: 104
     - path: .output/model/
       hash: md5
-      md5: 5eefcd1107a210a11b40f20ac11dd1a9.dir
-      size: 17272078
-      nfiles: 24
+      md5: 07f804b2cd316d137abf039409950128.dir
+      size: 17254865
+      nfiles: 29
     params:
       files/config.yaml:
         communicate:
@@ -127,6 +128,6 @@ stages:
     outs:
     - path: .output/communicate/
       hash: md5
-      md5: fd61c6b7b6f95ee3578216a81273f447.dir
-      size: 17691523
-      nfiles: 28
+      md5: 8e82a34a611af39f45b02ea488f47295.dir
+      size: 17668605
+      nfiles: 33
