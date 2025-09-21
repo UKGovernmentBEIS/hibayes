@@ -67,6 +67,7 @@ def extract_observed_feature(
 @process
 def extract_features(
     feature_names: List[str] = ["score"],
+    standardise: bool = False,
 ):
     """
     Simply extract features from the dataset. Each feature should be a column in the dataset. No indexing or factorization is done here.
@@ -84,9 +85,24 @@ def extract_features(
         features: Features = {}
         for feature_name in feature_names:
             dtype = infer_jax_dtype(state.processed_data[feature_name])
-            features[feature_name] = jnp.array(
-                state.processed_data[feature_name].values, dtype=dtype
-            )
+            if standardise:
+                mean = state.processed_data[feature_name].mean()
+                std = state.processed_data[feature_name].std()
+                state.processed_data[feature_name] = (
+                    state.processed_data[feature_name] - mean
+                ) / (std + 1e-8)
+
+                features[feature_name] = jnp.array(
+                    state.processed_data[feature_name].values, dtype=dtype
+                )
+                if display:
+                    display.logger.info(
+                        f"Standardised '{feature_name}' (mean: {mean}, std: {std})"
+                    )
+            else:
+                features[feature_name] = jnp.array(
+                    state.processed_data[feature_name].values, dtype=dtype
+                )
             if display:
                 display.logger.info(f"Extracted '{feature_name}' with dtype: {dtype}")
 
