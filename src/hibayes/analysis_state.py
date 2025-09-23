@@ -443,6 +443,13 @@ class AnalysisState:
 
     def add_plot(self, plot: plt.Figure, plot_name: str) -> None:
         """Add a plot to the communicate."""
+
+        # limit max len of plot_name
+        if len(plot_name) > 100:
+            plot_name = plot_name[:100]
+            logger.warning(
+                f"Plot name too long, truncated to 100 characters: {plot_name}"
+            )
         if self._communicate is None:
             self._communicate = {}
         unique_name = self._get_unique_name(plot_name)
@@ -450,6 +457,11 @@ class AnalysisState:
 
     def add_table(self, table: pd.DataFrame, table_name: str) -> None:
         """Add a table to the communicate."""
+        if len(table_name) > 100:
+            table_name = table_name[:100]
+            logger.warning(
+                f"Table name too long, truncated to 100 characters: {table_name}"
+            )
         if self._communicate is None:
             self._communicate = {}
         unique_name = self._get_unique_name(table_name)
