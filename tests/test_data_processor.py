@@ -16,7 +16,6 @@ from hibayes.process import (
     drop_rows_with_missing_features,
     extract_features,
     extract_observed_feature,
-    extract_predictors,
     groupby,
     map_columns,
     process,
@@ -186,7 +185,7 @@ class TestExtractFeatures:
         self, sample_analysis_state: AnalysisState, mock_display: ModellingDisplay
     ):
         """Test extracting default 'score' feature."""
-        processor = extract_features()
+        processor = extract_features(continuous_features=["score"])
         result = processor(sample_analysis_state, mock_display)
 
         assert result.features is not None
@@ -198,13 +197,13 @@ class TestExtractFeatures:
         # Check logging
         mock_display.logger.info.assert_called_once()
         call_args = mock_display.logger.info.call_args[0][0]
-        assert "Extracted 'score' with dtype:" in call_args
+        assert "Extracted continuous 'score' with dtype:" in call_args
 
     def test_extract_features_multiple_features(
         self, sample_analysis_state: AnalysisState, mock_display: ModellingDisplay
     ):
         """Test extracting multiple features."""
-        processor = extract_features(feature_names=["score", "difficulty"])
+        processor = extract_features(continuous_features=["score", "difficulty"])
         result = processor(sample_analysis_state, mock_display)
 
         assert result.features is not None
@@ -228,7 +227,7 @@ class TestExtractFeatures:
         self, sample_analysis_state: AnalysisState
     ):
         """Test extracting custom feature names."""
-        processor = extract_features(feature_names=["difficulty"])
+        processor = extract_features(continuous_features=["difficulty"])
         result = processor(sample_analysis_state)
 
         assert result.features is not None
@@ -242,7 +241,7 @@ class TestExtractFeatures:
         self, sample_analysis_state: AnalysisState
     ):
         """Test error when feature column doesn't exist."""
-        processor = extract_features(feature_names=["nonexistent"])
+        processor = extract_features(continuous_features=["nonexistent"])
 
         with pytest.raises(ValueError, match=r".*nonexistent.*"):
             processor(sample_analysis_state)
@@ -251,7 +250,7 @@ class TestExtractFeatures:
         self, sample_analysis_state: AnalysisState
     ):
         """Test error when some feature columns don't exist."""
-        processor = extract_features(feature_names=["score", "nonexistent"])
+        processor = extract_features(continuous_features=["score", "nonexistent"])
 
         with pytest.raises(ValueError, match=r".*nonexistent.*"):
             processor(sample_analysis_state)
@@ -273,7 +272,7 @@ class TestExtractFeatures:
         print(sample_analysis_state.processed_data["score"].dtype.itemsize)
 
         processor = extract_features(
-            feature_names=["int_feature", "float32_feature", "score"]
+            continuous_features=["int_feature", "float32_feature", "score"]
         )
         result = processor(sample_analysis_state)
         print(result.features["score"].dtype)
@@ -288,7 +287,7 @@ class TestExtractFeatures:
         """Test that processor updates existing features dict."""
         sample_analysis_state.features = {"existing": jnp.array([1, 2, 3, 4])}
 
-        processor = extract_features(feature_names=["score"])
+        processor = extract_features(continuous_features=["score"])
         result = processor(sample_analysis_state)
 
         assert "existing" in result.features
@@ -301,7 +300,7 @@ class TestExtractFeatures:
         """Test processor works when no existing features dict."""
         sample_analysis_state.features = None
 
-        processor = extract_features(feature_names=["score"])
+        processor = extract_features(continuous_features=["score"])
         result = processor(sample_analysis_state)
 
         assert result.features is not None
@@ -310,7 +309,7 @@ class TestExtractFeatures:
 
     def test_extract_features_no_display(self, sample_analysis_state: AnalysisState):
         """Test processor works without display object."""
-        processor = extract_features(feature_names=["score"])
+        processor = extract_features(continuous_features=["score"])
         result = processor(sample_analysis_state, display=None)
 
         assert result.features is not None
@@ -320,7 +319,7 @@ class TestExtractFeatures:
         self, sample_analysis_state: AnalysisState
     ):
         """Test processor with empty feature list."""
-        processor = extract_features(feature_names=[])
+        processor = extract_features(continuous_features=[])
         result = processor(sample_analysis_state)
 
         # Should not modify features dict if it exists
@@ -333,7 +332,7 @@ class TestExtractFeatures:
         self, sample_analysis_state: AnalysisState
     ):
         """Test that features are extracted in the specified order."""
-        processor = extract_features(feature_names=["difficulty", "score"])
+        processor = extract_features(continuous_features=["difficulty", "score"])
         result = processor(sample_analysis_state)
 
         # Check that both features are present
@@ -352,7 +351,7 @@ class TestExtractFeatures:
         sample_analysis_state.processed_data = sample_analysis_state.data.copy()
         sample_analysis_state.processed_data.loc[0, "score"] = float("nan")
 
-        processor = extract_features(feature_names=["score"])
+        processor = extract_features(continuous_features=["score"])
         result = processor(sample_analysis_state)
 
         assert result.features is not None
@@ -367,7 +366,7 @@ class TestExtractFeatures:
         sample_analysis_state.processed_data = sample_analysis_state.data.copy()
         sample_analysis_state.processed_data["string_feature"] = ["a", "b", "c", "d"]
 
-        processor = extract_features(feature_names=["string_feature"])
+        processor = extract_features(continuous_features=["string_feature"])
 
         with pytest.raises(ValueError, match="Unsupported pandas dtype"):
             processor(sample_analysis_state)
@@ -376,7 +375,7 @@ class TestExtractFeatures:
         self, sample_analysis_state: AnalysisState
     ):
         """Test that error message format is correct and informative."""
-        processor = extract_features(feature_names=["missing1", "missing2"])
+        processor = extract_features(continuous_features=["missing1", "missing2"])
 
         with pytest.raises(ValueError) as exc_info:
             processor(sample_analysis_state)
@@ -401,7 +400,7 @@ class TestExtractFeatures:
             False,
         ]
 
-        processor = extract_features(feature_names=["bool_feature"])
+        processor = extract_features(continuous_features=["bool_feature"])
         result = processor(sample_analysis_state)
 
         assert result.features is not None
@@ -414,13 +413,13 @@ class TestExtractFeatures:
         self, sample_analysis_state: AnalysisState, mock_display: ModellingDisplay
     ):
         """Test that logging contains correct information."""
-        processor = extract_features(feature_names=["score"])
+        processor = extract_features(continuous_features=["score"])
         _ = processor(sample_analysis_state, mock_display)
 
         # Check the logged message contains expected information
         mock_display.logger.info.assert_called_once()
         call_args = mock_display.logger.info.call_args[0][0]
-        assert "Extracted 'score'" in call_args
+        assert "Extracted continuous 'score'" in call_args
         assert "dtype:" in call_args
         assert "float32" in call_args  # Expected dtype for float columns
 
@@ -428,7 +427,7 @@ class TestExtractFeatures:
         self, sample_analysis_state: AnalysisState
     ):
         """Test processor handles duplicate feature names."""
-        processor = extract_features(feature_names=["score", "score"])
+        processor = extract_features(continuous_features=["score", "score"])
         result = processor(sample_analysis_state)
 
         # Should only have one 'score' feature (dict keys are unique)
@@ -438,13 +437,13 @@ class TestExtractFeatures:
 
 
 class TestExtractPredictors:
-    """Test extract_predictors processor."""
+    """Test extract_features processor with categorical_features."""
 
-    def test_extract_predictors_default(
+    def test_extract_features_categorical_default(
         self, sample_analysis_state: AnalysisState, mock_display: ModellingDisplay
     ):
         """Test extracting default predictors (model, task)."""
-        processor = extract_predictors()
+        processor = extract_features(categorical_features=["model", "task"])
         result = processor(sample_analysis_state, mock_display)
 
         # Check features
@@ -475,11 +474,11 @@ class TestExtractPredictors:
         # Check logging
         assert mock_display.logger.info.call_count == 2
 
-    def test_extract_predictors_custom_names(
+    def test_extract_features_categorical_custom_names(
         self, sample_analysis_state: AnalysisState
     ):
         """Test extracting custom predictor names."""
-        processor = extract_predictors(predictor_names=["task"])
+        processor = extract_features(categorical_features=["task"])
         result = processor(sample_analysis_state)
 
         assert result.features is not None
@@ -487,20 +486,20 @@ class TestExtractPredictors:
         assert "num_task" in result.features
         assert "model_index" not in result.features  # Should not be included
 
-    def test_extract_predictors_missing_columns(
+    def test_extract_features_categorical_missing_columns(
         self, sample_analysis_state: AnalysisState
     ):
         """Test error when predictor columns don't exist."""
-        processor = extract_predictors(predictor_names=["nonexistent"])
+        processor = extract_features(categorical_features=["nonexistent"])
 
         with pytest.raises(ValueError, match=r".*nonexistent.*"):
             processor(sample_analysis_state)
 
-    def test_extract_predictors_factorization(
+    def test_extract_features_categorical_factorization(
         self, sample_analysis_state: AnalysisState
     ):
         """Test that factorization produces correct indices."""
-        processor = extract_predictors(predictor_names=["model"])
+        processor = extract_features(categorical_features=["model"])
         result = processor(sample_analysis_state)
 
         # Should have indices 0, 0, 1, 1 (claude=0, gpt-4=1 when sorted)
@@ -509,7 +508,7 @@ class TestExtractPredictors:
         )  # gpt-4, gpt-4, claude, claude
         assert jnp.array_equal(result.features["model_index"], expected_indices)
 
-    def test_extract_predictors_updates_existing_state(
+    def test_extract_features_categorical_updates_existing_state(
         self, sample_analysis_state: AnalysisState
     ):
         """Test that processor updates existing features/coords/dims."""
@@ -517,7 +516,7 @@ class TestExtractPredictors:
         sample_analysis_state.coords = {"existing_coord": ["a"]}
         sample_analysis_state.dims = {"existing_dim": ["x"]}
 
-        processor = extract_predictors(predictor_names=["model"])
+        processor = extract_features(categorical_features=["model"])
         result = processor(sample_analysis_state)
 
         # Should preserve existing
@@ -530,11 +529,11 @@ class TestExtractPredictors:
         assert "model" in result.coords
         assert "model_effects" in result.dims
 
-    def test_extract_predictors_with_interactions(
+    def test_extract_features_categorical_with_interactions(
         self, sample_analysis_state: AnalysisState, mock_display: ModellingDisplay
     ):
         """Test extracting predictors with interactions enabled."""
-        processor = extract_predictors(interactions=True)
+        processor = extract_features(categorical_features=["model", "task"], interactions=True)
         result = processor(sample_analysis_state, mock_display)
 
         # Check that basic features are still there
@@ -553,11 +552,11 @@ class TestExtractPredictors:
         assert len(interaction_logs) > 0
         assert any("model_task" in log for log in interaction_logs)
 
-    def test_extract_predictors_with_effect_coding(
+    def test_extract_features_categorical_with_effect_coding(
         self, sample_analysis_state: AnalysisState, mock_display: ModellingDisplay
     ):
         """Test extracting predictors with effect coding for main effects."""
-        processor = extract_predictors(effect_coding_for_main_effects=True)
+        processor = extract_features(categorical_features=["model", "task"], effect_coding_for_main_effects=True)
         result = processor(sample_analysis_state, mock_display)
 
         # Check that constrained coordinates are created
@@ -578,10 +577,10 @@ class TestExtractPredictors:
 
         # Check logging mentions constrained effects
         log_calls = [call[0][0] for call in mock_display.logger.info.call_args_list]
-        constrained_logs = [log for log in log_calls if "Constrained effects" in log]
+        constrained_logs = [log for log in log_calls if "Constrained:" in log]
         assert len(constrained_logs) == 2  # One for model, one for task
 
-    def test_extract_predictors_effect_coding_single_level(self):
+    def test_extract_features_categorical_effect_coding_single_level(self):
         """Test effect coding with single-level predictor (should not create constrained coords)."""
         # Create data with single-level predictor
         data = pd.DataFrame(
@@ -593,8 +592,8 @@ class TestExtractPredictors:
         )
         state = AnalysisState(data=data)
 
-        processor = extract_predictors(
-            predictor_names=["model"], effect_coding_for_main_effects=True
+        processor = extract_features(
+            categorical_features=["model"], effect_coding_for_main_effects=True
         )
         result = processor(state)
 
@@ -603,11 +602,12 @@ class TestExtractPredictors:
         assert result.dims["model_effects"] == ["model"]  # Should use standard coding
         assert "model_effects" in result.dims
 
-    def test_extract_predictors_interactions_and_effect_coding(
+    def test_extract_features_categorical_interactions_and_effect_coding(
         self, sample_analysis_state: AnalysisState, mock_display: ModellingDisplay
     ):
         """Test extracting predictors with both interactions and effect coding."""
-        processor = extract_predictors(
+        processor = extract_features(
+            categorical_features=["model", "task"],
             interactions=True, effect_coding_for_main_effects=True
         )
         result = processor(sample_analysis_state, mock_display)
@@ -624,13 +624,13 @@ class TestExtractPredictors:
         # Check logging mentions both constrained effects and interactions
         log_calls = [call[0][0] for call in mock_display.logger.info.call_args_list]
 
-        constrained_logs = [log for log in log_calls if "Constrained effects" in log]
+        constrained_logs = [log for log in log_calls if "Constrained:" in log]
         assert len(constrained_logs) == 2
 
         interaction_logs = [log for log in log_calls if "interaction" in log.lower()]
         assert len(interaction_logs) > 0
 
-    def test_extract_predictors_three_way_interactions(self):
+    def test_extract_features_categorical_three_way_interactions(self):
         """Test that only pairwise interactions are created with 3+ predictors."""
         # Create data with three predictors
         data = pd.DataFrame(
@@ -643,8 +643,8 @@ class TestExtractPredictors:
         )
         state = AnalysisState(data=data)
 
-        processor = extract_predictors(
-            predictor_names=["model", "task", "dataset"], interactions=True
+        processor = extract_features(
+            categorical_features=["model", "task", "dataset"], interactions=True
         )
         result = processor(state)
 
@@ -661,11 +661,11 @@ class TestExtractPredictors:
         # Should not have three-way interaction
         assert "model_task_dataset_effects" not in result.dims
 
-    def test_extract_predictors_constrained_coords_content(
+    def test_extract_features_categorical_constrained_coords_content(
         self, sample_analysis_state: AnalysisState
     ):
         """Test that constrained coordinates contain the correct values (all but last)."""
-        processor = extract_predictors(effect_coding_for_main_effects=True)
+        processor = extract_features(categorical_features=["model", "task"], effect_coding_for_main_effects=True)
         result = processor(sample_analysis_state)
 
         # Check that constrained coords are all but the last (when sorted)
@@ -928,7 +928,7 @@ class TestProcessConfig:
         config_dict = {
             "processors": [
                 "extract_observed_feature",
-                {"extract_features": {"feature_names": ["model"]}},
+                {"extract_features": {"continuous_features": ["model"]}},
                 "drop_rows_with_missing_features",
             ]
         }
@@ -955,7 +955,7 @@ class TestProcessConfig:
         yaml_content = {
             "processors": [
                 "extract_observed_feature",
-                {"extract_features": {"feature_names": ["model", "task"]}},
+                {"extract_features": {"continuous_features": ["model", "task"]}},
             ]
         }
 
@@ -1066,7 +1066,7 @@ def custom_test_processor():
         config_dict = {
             "processors": {
                 "extract_observed_feature": {"feature_name": "score"},
-                "extract_features": {"feature_names": ["model", "task"]},
+                "extract_features": {"continuous_features": ["model", "task"]},
             }
         }
 
@@ -1101,8 +1101,8 @@ class TestProcessIntegration:
                 }
             ),
             extract_observed_feature(),
-            extract_features(),
-            extract_predictors(),
+            extract_features(continuous_features=["score"]),
+            extract_features(categorical_features=["model", "task"]),
         ]
 
         # Run pipeline
@@ -1137,7 +1137,7 @@ class TestProcessIntegration:
                 column_mapping={"n_correct": "score"}
             ),  # Map for extract_observed_feature
             extract_observed_feature(),
-            extract_features(),
+            extract_features(continuous_features=["score"]),
         ]
 
         # Run pipeline
@@ -1177,7 +1177,7 @@ class TestProcessIntegration:
         # Run multiple processors
         processors = [
             extract_observed_feature(),
-            extract_features(),
+            extract_features(continuous_features=["score"]),
             map_columns(column_mapping={"model": "llm"}),
         ]
 
@@ -1212,7 +1212,7 @@ class TestProcessIntegration:
         assert state.dims is None
 
         # Second processor should build on first
-        processor2 = extract_predictors()
+        processor2 = extract_features(categorical_features=["model", "task"])
         state = processor2(state)
 
         assert "obs" in state.features  # From first processor
@@ -1383,7 +1383,7 @@ class TestProcessorErrorHandling:
         state.coords = None
         state.dims = None
 
-        processor = extract_predictors()
+        processor = extract_features(categorical_features=["model", "task"])
         result = processor(state)
 
         # Should initialize new dicts
@@ -1396,7 +1396,7 @@ class TestProcessorErrorHandling:
         data = pd.DataFrame({"score": [0.8, 0.9]})
         state = AnalysisState(data=data)
 
-        processor = extract_features(feature_names=[])
+        processor = extract_features(continuous_features=[])
         result = processor(state)
 
         # Should handle empty list gracefully
@@ -1436,7 +1436,7 @@ class TestProcessorPerformance:
         )[:n_rows]
 
         state = AnalysisState(data=data)
-        processor = extract_predictors()
+        processor = extract_features(categorical_features=["model", "task"])
         result = processor(state)
 
         assert len(result.features["model_index"]) == n_rows
@@ -1458,7 +1458,7 @@ class TestProcessorPerformance:
 
         # Second processor should reuse existing processed_data
         original_processed_id = id(result.processed_data)
-        processor2 = extract_features()
+        processor2 = extract_features(continuous_features=["score"])
         result2 = processor2(result)
 
         assert id(result2.processed_data) == original_processed_id
@@ -1472,7 +1472,7 @@ class TestProcessConfigYAML:
         yaml_content = {
             "processors": [
                 "extract_observed_feature",
-                {"extract_features": {"feature_names": ["model", "task"]}},
+                {"extract_features": {"continuous_features": ["model", "task"]}},
                 "drop_rows_with_missing_features",
             ]
         }
@@ -1491,7 +1491,7 @@ class TestProcessConfigYAML:
                 {"extract_observed_feature": {"feature_name": "accuracy"}},
                 {
                     "extract_features": {
-                        "feature_names": ["model", "task", "difficulty"]
+                        "continuous_features": ["model", "task", "difficulty"]
                     }
                 },
                 {
@@ -1516,7 +1516,7 @@ class TestProcessConfigYAML:
             "path": ["/fake/custom/path1.py", "/fake/custom/path2.py"],
             "processors": [
                 "extract_observed_feature",
-                {"extract_features": {"feature_names": ["score"]}},
+                {"extract_features": {"continuous_features": ["score"]}},
             ],
         }
 
@@ -1561,7 +1561,7 @@ class TestProcessConfigYAML:
         yaml_content = {
             "processors": [
                 "extract_observed_feature",
-                {"extract_features": {"feature_names": ["score"]}},
+                {"extract_features": {"continuous_features": ["score"]}},
             ]
         }
 
@@ -1887,8 +1887,8 @@ def comprehensive_processor(
                     }
                 },
                 "extract_observed_feature",
-                {"extract_features": {"feature_names": ["score", "normalized_score"]}},
-                {"extract_predictors": {"predictor_names": ["model"]}},
+                {"extract_features": {"continuous_features": ["score", "normalized_score"]}},
+                {"extract_features": {"categorical_features": ["model"]}},
             ],
         }
 
@@ -1952,7 +1952,7 @@ class TestProcessConfigEdgeCases:
         config_dict = {
             "processors": [
                 "extract_observed_feature",
-                {"extract_features": {"feature_names": ["score"]}},
+                {"extract_features": {"continuous_features": ["score"]}},
             ]
         }
 
@@ -2018,8 +2018,8 @@ class TestProcessConfigEdgeCases:
         config_dict = {
             "processors": [
                 "extract_observed_feature",
-                {"extract_features": {"feature_names": ["score"]}},
-                {"extract_predictors": {"predictor_names": ["model"]}},
+                {"extract_features": {"continuous_features": ["score"]}},
+                {"extract_features": {"categorical_features": ["model"]}},
             ]
         }
 
