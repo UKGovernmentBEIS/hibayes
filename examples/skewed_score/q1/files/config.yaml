@@ -1,7 +1,7 @@
 data_process:
   processors:
     - extract_observed_feature: {feature_name: score} # 0-10 rating
-    - extract_predictors: {predictor_names: [grader], effect_coding_for_main_effects: true}
+    - extract_features: {categorical_features: [grader], effect_coding_for_main_effects: true}
 
 model:
   models:

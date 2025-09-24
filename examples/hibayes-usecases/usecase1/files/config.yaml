@@ -12,8 +12,7 @@ data_process:
   processors:
     - map_columns: {column_mapping: {domain: group}}
     - groupby: {groupby_columns: [group]}
-    - extract_features: {feature_names: [n_total]}
-    - extract_predictors: {predictor_names: [group]}
+    - extract_features: {continuous_features: [n_total], categorical_features: [group]}
     - extract_observed_feature: {feature_name: n_correct}
 
 model:
