@@ -37,22 +37,23 @@ def forest_plot(
             models_to_run = state.models
 
         for model_analysis in models_to_run:
+            model_vars = vars
             if model_analysis.is_fitted:
-                vars, dropped = (
-                    drop_not_present_vars(vars, model_analysis.inference_data)
-                    if vars
+                model_vars, dropped = (
+                    drop_not_present_vars(model_vars, model_analysis.inference_data)
+                    if model_vars
                     else (None, None)
                 )
                 if dropped and display:
                     display.logger.warning(
                         f"Variables {dropped} were not found in the model {model_analysis.model_name} inference data."
                     )
-                if vars is None:
-                    vars = model_analysis.model_config.get_plot_params()
+                if model_vars is None:
+                    model_vars = model_analysis.model_config.get_plot_params()
 
                 ax = az.plot_forest(
                     model_analysis.inference_data,
-                    var_names=vars,
+                    var_names=model_vars,
                     figsize=figsize,
                     transform=model_analysis.link_function if transform else None,
                     *args,
@@ -69,7 +70,7 @@ def forest_plot(
                 # add plot to analysis state
                 state.add_plot(
                     plot=fig,
-                    plot_name=f"model_{model_analysis.model_name}_{'-'.join(vars) if vars else ''}_forest",
+                    plot_name=f"model_{model_analysis.model_name}_{'-'.join(model_vars) if model_vars else ''}_forest",
                 )
         return state, "pass"
 
@@ -103,9 +104,10 @@ def trace_plot(
             models_to_run = state.models
 
         for model_analysis in models_to_run:
-            vars, dropped = (
-                drop_not_present_vars(vars, model_analysis.inference_data)
-                if vars
+            model_vars = vars
+            model_vars, dropped = (
+                drop_not_present_vars(model_vars, model_analysis.inference_data)
+                if model_vars
                 else (None, None)
             )
 
@@ -113,13 +115,13 @@ def trace_plot(
                 display.logger.warning(
                     f"Variables {dropped} were not found in the model {model_analysis.model_name} inference data."
                 )
-            if vars is None:
+            if model_vars is None:
                 # best to get all the parameter from the model for the trace plot
-                vars = list(model_analysis.inference_data.posterior.data_vars)
+                model_vars = list(model_analysis.inference_data.posterior.data_vars)
             if model_analysis.is_fitted:
                 az.plot_trace(
                     model_analysis.inference_data,
-                    var_names=vars,
+                    var_names=model_vars,
                     figsize=figsize,
                     transform=model_analysis.link_function if transform else None,
                     *args,
@@ -129,7 +131,7 @@ def trace_plot(
 
                 state.add_plot(
                     plot=fig,
-                    plot_name=f"model_{model_analysis.model_name}_trace",
+                    plot_name=f"model_{model_analysis.model_name}_{'-'.join(model_vars) if model_vars else ''}_trace",
                 )
         return state, "pass"
 
@@ -161,10 +163,11 @@ def pair_plot(
             models_to_run = state.models
 
         for model_analysis in models_to_run:
+            model_vars = vars
             if model_analysis.is_fitted:
-                vars, dropped = (
-                    drop_not_present_vars(vars, model_analysis.inference_data)
-                    if vars
+                model_vars, dropped = (
+                    drop_not_present_vars(model_vars, model_analysis.inference_data)
+                    if model_vars
                     else (None, None)
                 )
 
@@ -172,11 +175,11 @@ def pair_plot(
                     display.logger.warning(
                         f"Variables {dropped} were not found in the model {model_analysis.model_name} inference data."
                     )
-                if vars is None:
-                    vars = model_analysis.model_config.get_plot_params()
+                if model_vars is None:
+                    model_vars = model_analysis.model_config.get_plot_params()
                 az.plot_pair(
                     model_analysis.inference_data,
-                    var_names=vars,
+                    var_names=model_vars,
                     kind="kde",
                     figsize=figsize,
                     *args,
@@ -185,7 +188,7 @@ def pair_plot(
                 fig = plt.gcf()
                 state.add_plot(
                     plot=fig,
-                    plot_name=f"model_{model_analysis.model_name}_pair",
+                    plot_name=f"model_{model_analysis.model_name}_{'-'.join(model_vars) if model_vars else ''}_pair",
                 )
         return state, "pass"
 
