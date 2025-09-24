@@ -6,15 +6,17 @@ from .processors import (
     Features,
     drop_rows_with_missing_features,
     extract_features,
+    extract_features_deprecated,
     extract_observed_feature,
-    extract_predictors,
+    extract_predictors_deprecated,
     groupby,
     map_columns,
 )
 
 __all__ = [
     "extract_observed_feature",
-    "extract_predictors",
+    "extract_features_deprecated",
+    "extract_predictors_deprecated",
     "extract_features",
     "drop_rows_with_missing_features",
     "map_columns",

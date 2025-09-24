@@ -66,6 +66,140 @@ def extract_observed_feature(
 
 @process
 def extract_features(
+    categorical_features: list[str] | None = None,
+    continuous_features: list[str] | None = None,
+    *,
+    interactions: bool = False,
+    effect_coding_for_main_effects: bool = False,
+    standardise: bool = False,
+):
+    """
+    Extract inputs for GLMs:
+      - Categorical: factorised indices, counts, coords, dims (+ optional constrained coords)
+      - Continuous: raw arrays (optionally standardised)
+      - Interactions:
+          * categorical × categorical: dims [c1, c2]
+          * continuous × categorical: feature '{x}_{g}_effects'
+    """
+    categorical_features = categorical_features or []
+    continuous_features = continuous_features or []
+
+    def process(
+        state: AnalysisState,
+        display: ModellingDisplay | None = None,
+    ) -> AnalysisState:
+        all_needed = categorical_features + continuous_features
+        missing = [c for c in all_needed if c not in state.processed_data.columns]
+        if missing:
+            raise ValueError(
+                f"Processed data missing required columns: {missing}. "
+                f"Available: {state.processed_data.columns.tolist()}"
+            )
+        overlap = set(categorical_features).intersection(continuous_features)
+        if overlap:
+            raise ValueError(
+                f"Columns cannot be both categorical and continuous: {sorted(overlap)}"
+            )
+
+        features: Features = {}
+        coords: Coords = {}
+        dims: Dims = {}
+
+        # continuous
+        for feat in continuous_features:
+            series = state.processed_data[feat]
+            dtype = infer_jax_dtype(series)
+            if standardise:
+                mean = float(series.mean())
+                std = float(series.std())
+                state.processed_data[feat] = (series - mean) / (std + 1e-8)
+                if display:
+                    display.logger.info(
+                        f"Standardised continuous '{feat}' (mean: {mean}, std: {std})"
+                    )
+            features[feat] = jnp.asarray(state.processed_data[feat].values, dtype=dtype)
+            if display:
+                display.logger.info(
+                    f"Extracted continuous '{feat}' with dtype: {dtype}"
+                )
+
+        # categorical
+        for cat in categorical_features:
+            series = state.processed_data[cat]
+            code, index = pd.factorize(series, sort=True)
+            features[f"{cat}_index"] = jnp.asarray(code, dtype=jnp.int32)
+            features[f"num_{cat}"] = len(index)
+            coords[cat] = index.tolist()
+            dims[f"{cat}_effects"] = [cat]
+            if effect_coding_for_main_effects and len(index) > 1:
+                dims[f"{cat}_effects_constrained"] = [f"{cat}_constrained"]
+                coords[f"{cat}_constrained"] = index[:-1].tolist()
+            if display:
+                display.logger.info(f"Extracted categorical '{cat}' -> '{cat}_index'")
+                if effect_coding_for_main_effects and len(index) > 1:
+                    display.logger.info(
+                        f"  - Full effects: {len(index)}; Constrained: {len(index) - 1}"
+                    )
+
+        # interactions
+        if interactions:
+            # categorical × categorical dims
+            if len(categorical_features) >= 2:
+                for c1, c2 in combinations(categorical_features, 2):
+                    inter_name = f"{c1}_{c2}"
+                    n1 = int(features[f"num_{c1}"])
+                    n2 = int(features[f"num_{c2}"])
+                    dims[f"{inter_name}_effects"] = [c1, c2]
+                    if display:
+                        display.logger.info(
+                            f"Added interaction dims for '{inter_name}' (full: {n1}×{n2})"
+                        )
+                        if effect_coding_for_main_effects and n1 > 1 and n2 > 1:
+                            display.logger.info(
+                                f"  - Constrained (if used in model): {(n1 - 1)}×{(n2 - 1)}"
+                            )
+
+            # continuous × categorical: add feature + dims for per-category slopes
+            for x in continuous_features:
+                x_dtype = infer_jax_dtype(state.processed_data[x])
+                x_values = jnp.asarray(state.processed_data[x].values, dtype=x_dtype)
+                for g in categorical_features:
+                    # per-observation regressor reused with category-index in the model
+                    features[f"{g}_{x}"] = x_values
+                    features[f"{x}_{g}"] = x_values  # allow either order
+                    # effects: one slope per category level (optionally constrained)
+                    dims[f"{g}_{x}_effects"] = [g]
+                    dims[f"{x}_{g}_effects"] = [g]  # allow either order
+                    if display:
+                        display.logger.info(
+                            f"Added cont×cat interaction {g}_{x}; "
+                            f"effects dims '{g}_{x}_effects'=[{g}]"
+                        )
+
+        if state.features:
+            state.features.update(features)
+        else:
+            state.features = features
+
+        if coords:
+            if state.coords:
+                state.coords.update(coords)
+            else:
+                state.coords = coords
+
+        if dims:
+            if state.dims:
+                state.dims.update(dims)
+            else:
+                state.dims = dims
+
+        return state
+
+    return process
+
+
+@process
+def extract_features_deprecated(
     feature_names: List[str] = ["score"],
     standardise: bool = False,
 ):
@@ -117,7 +251,7 @@ def extract_features(
 
 
 @process
-def extract_predictors(
+def extract_predictors_deprecated(
     predictor_names: List[str] = ["model", "task"],
     interactions: bool = False,
     effect_coding_for_main_effects: bool = False,
