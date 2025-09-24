@@ -149,7 +149,7 @@ data_process: # <3>
   processors:
     - drop_rows_with_missing_features
     - extract_observed_feature: {feature_name: score}
-    - extract_predictors: {predictor_names: [model]}
+    - extract_features: {categorical_features: [model]}
 
 model:
   path: path/to/your_script.py

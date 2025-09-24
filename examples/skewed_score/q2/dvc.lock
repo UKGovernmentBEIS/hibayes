@@ -6,8 +6,8 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: f2b14730045e9246b7606628eb9c9590.dir
-      size: 497741
+      md5: bd09a6269f7fad6497ab1e381f6fe2e2.dir
+      size: 510108
       nfiles: 104
     - path: data/data.csv
       hash: md5
@@ -19,8 +19,8 @@ stages:
           processors:
           - extract_observed_feature:
               feature_name: score
-          - extract_predictors:
-              predictor_names:
+          - extract_features:
+              categorical_features:
               - grader
               - LLM
               effect_coding_for_main_effects: true
@@ -28,8 +28,8 @@ stages:
     outs:
     - path: .output/process/
       hash: md5
-      md5: 4e098af585141eef8bd9da19dfdc1b7a.dir
-      size: 14559
+      md5: 974b4750185f0fb6146a5ee99c98729c.dir
+      size: 14443
       nfiles: 7
   model:
     cmd: hibayes-model --config files/config.yaml --analysis-state 
@@ -37,13 +37,13 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: f2b14730045e9246b7606628eb9c9590.dir
-      size: 497741
+      md5: bd09a6269f7fad6497ab1e381f6fe2e2.dir
+      size: 510108
       nfiles: 104
     - path: .output/process/
       hash: md5
-      md5: 4e098af585141eef8bd9da19dfdc1b7a.dir
-      size: 14559
+      md5: 974b4750185f0fb6146a5ee99c98729c.dir
+      size: 14443
       nfiles: 7
     params:
       files/config.yaml:
@@ -88,8 +88,8 @@ stages:
     outs:
     - path: .output/model/
       hash: md5
-      md5: 07f804b2cd316d137abf039409950128.dir
-      size: 17254865
+      md5: 45945a6a3d52369e6d17103f04b6ef84.dir
+      size: 17257288
       nfiles: 29
   communicate:
     cmd: hibayes-comm --config files/config.yaml --analysis-state .output/model/
@@ -97,13 +97,13 @@ stages:
     deps:
     - path: ../../../src/hibayes/
       hash: md5
-      md5: f2b14730045e9246b7606628eb9c9590.dir
-      size: 497741
+      md5: bd09a6269f7fad6497ab1e381f6fe2e2.dir
+      size: 510108
       nfiles: 104
     - path: .output/model/
       hash: md5
-      md5: 07f804b2cd316d137abf039409950128.dir
-      size: 17254865
+      md5: 45945a6a3d52369e6d17103f04b6ef84.dir
+      size: 17257288
       nfiles: 29
     params:
       files/config.yaml:
@@ -128,6 +128,6 @@ stages:
     outs:
     - path: .output/communicate/
       hash: md5
-      md5: 8e82a34a611af39f45b02ea488f47295.dir
-      size: 17668605
+      md5: 2d85669a29b229d45f8be2132b65421a.dir
+      size: 17670985
       nfiles: 33

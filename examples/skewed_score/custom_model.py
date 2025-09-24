@@ -293,7 +293,7 @@ def pairwise_logistic_model(
                 "length_slope_sigma", dist.HalfNormal(prior_length_slope_sigma_scale)
             )
             grader_length_slopes = numpyro.sample(
-                "grader_length_slopes",
+                "grader_length_diff_effects",
                 dist.Normal(length_slope_mean, sigma_slope)
                 .expand([features["num_grader"]])
                 .to_event(1),
@@ -327,7 +327,7 @@ def pairwise_logistic_model(
                     n2 = features[f"num_{var2}"]
                     # one slope per level of var2
                     slopes = numpyro.sample(
-                        f"length_diff_x_{var2}", prior_inter.expand([n2])
+                        f"length_diff_{var2}", prior_inter.expand([n2])
                     )
                     eta = eta + slopes[idx2] * features["length_diff"]
 
@@ -335,7 +335,7 @@ def pairwise_logistic_model(
                     idx1 = features[f"{var1}_index"]
                     n1 = features[f"num_{var1}"]
                     slopes = numpyro.sample(
-                        f"{var1}_x_length_diff", prior_inter.expand([n1])
+                        f"{var1}_length_diff", prior_inter.expand([n1])
                     )
                     eta = eta + slopes[idx1] * features["length_diff"]
 

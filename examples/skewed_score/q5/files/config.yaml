@@ -1,8 +1,7 @@
 data_process:
   processors:
     - extract_observed_feature: {feature_name: first_is_chosen} # binary outcome
-    - extract_predictors: {predictor_names: ['llm_pair', 'grader'], effect_coding_for_main_effects: true, interactions: true}
-    - extract_features: {feature_names: [length_diff], standardise: true}
+    - extract_features: {categorical_features: ['llm_pair', 'grader'], effect_coding_for_main_effects: true, interactions: true, continuous_features: [length_diff], standardise: true}
 
 model:
   path: ../custom_model.py
@@ -30,6 +29,6 @@ check:
 communicate:
   path: ../custom_communicators.py
   communicators:
-    - forest_plot: {vars: ["grader_effects", "llm_pair_effects", "grader_length_slopes"], combined: true, vertical_line: 0}
+    - forest_plot: {vars: ["grader_effects", "llm_pair_effects", "grader_length_diff_effects"], combined: true, vertical_line: 0}
     - summary_table
     - model_comparison_plot

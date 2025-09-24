@@ -3,7 +3,7 @@ data_process:
   processors:
     - add_categorical_column: {new_column: grader_type, source_column: grader, mapping_rules: {Human: human}, default_value: model}
     - extract_observed_feature: {feature_name: score} # 0-10 rating
-    - extract_predictors: {predictor_names: [grader, grader_type, LLM, item], effect_coding_for_main_effects: true, interactions: true}
+    - extract_features: {categorical_features: [grader, grader_type, LLM, item], effect_coding_for_main_effects: true, interactions: true}
 
 model:
   path: ../custom_model.py

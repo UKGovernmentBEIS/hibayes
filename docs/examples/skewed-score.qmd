@@ -29,9 +29,7 @@ Analyses how different graders affect score distributions on a 0-10 rating scale
 data_process:
   processors:
     - extract_observed_feature: {feature_name: score}  # 0-10 rating
-    - extract_predictors:
-        predictor_names: [grader]
-        effect_coding_for_main_effects: true # <1>
+    - extract_features: {categorical_features: [grader], effect_coding_for_main_effects: true} # <1>
 ```
 1. Here we use effect coding where parameters sum to zero, this make interpretation of the values easier.
 
@@ -137,7 +135,7 @@ data_process:
   processors:
     - add_categorical_column: {new_column: grader_type, source_column: grader, mapping_rules: {Human: human}, default_value: model} # <2>
     - extract_observed_feature: {feature_name: score} # 0-10 rating
-    - extract_predictors: {predictor_names: [grader, grader_type, LLM], effect_coding_for_main_effects: true, interactions: true}
+    - extract_features: {categorical_features: [grader, grader_type, LLM], effect_coding_for_main_effects: true, interactions: true}
 ```
 1. specify the file where the custom processor is defined.
 2. Calling the custom processor defined below.
@@ -267,8 +265,7 @@ Until now we have focussed on categorical effects. GLMs of course can support co
 data_process:
   processors:
     - extract_observed_feature: {feature_name: first_is_chosen} # binary outcome
-    - extract_predictors: {predictor_names: ['llm_pair', 'grader'], effect_coding_for_main_effects: true, interactions: true}
-    - extract_features: {feature_names: [length_diff], standardise: true} ,.
+    - extract_features: {categorical_features: ['llm_pair', 'grader'], effect_coding_for_main_effects: true, interactions: true, continuous_features: [length_diff], standardise: true}
 
 model:
   path: ../custom_model.py

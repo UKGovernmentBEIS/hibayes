@@ -105,8 +105,7 @@ data_process:
   processors:
     - map_columns: {column_mapping: {domain: group}}
     - groupby: {groupby_columns: [group]}
-    - extract_features: {feature_names: [n_total]}
-    - extract_predictors: {predictor_names: [group]}
+    - extract_features: {continuous_features: [n_total], categorical_features: [group]}
     - extract_observed_feature: {feature_name: n_correct}
 ```
 
@@ -205,14 +204,9 @@ Maps columns to three hierarchical levels:
 ```yaml
 data_process:
   processors:
-    - map_columns:
-        column_mapping:
-          model: group
-          domain: subgroup
-          sub_domain: subsubgroup
+    - map_columns: {column_mapping: model: group, domain: subgroup, sub_domain: subsubgroup}
     - groupby: {groupby_columns: [group, subgroup, subsubgroup]}
-    - extract_features: {feature_names: [n_total]}
-    - extract_predictors: {predictor_names: [group, subgroup, subsubgroup]}
+    - extract_features: {continuous_features: [n_total], categorical_features: [group, subgroup, subsubgroup]}
     - extract_observed_feature: {feature_name: n_correct}
 ```
 
@@ -258,10 +252,7 @@ Visualises effects at each hierarchical level:
 communicate:
   communicators:
     - forest_plot: {combined: true, best_model: false}
-    - forest_plot:
-        vars: ["group_effects", "subgroup_effects", "subsubgroup_effects"]
-        combined: true
-        best_model: false
+    - forest_plot: {vars: ["group_effects", "subgroup_effects", "subsubgroup_effects"], combined: true, best_model: false}
     - trace_plot: {best_model: false}
     - summary_table: {best_model: false}
     - model_comparison_plot
