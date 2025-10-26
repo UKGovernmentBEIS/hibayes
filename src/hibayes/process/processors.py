@@ -24,12 +24,14 @@ Dims = Dict[str, List[str]]
 @process
 def extract_observed_feature(
     feature_name: str = "score",
+    test: Optional[str] = None,
 ) -> DataProcessor:
     """
     Extract a single feature from the data, e.g. the score column.
 
     Args:
         feature_name: The name of the feature to extract.
+        test: Whether to also extract the feature for test data.
     """
 
     def process(
@@ -45,9 +47,24 @@ def extract_observed_feature(
 
         dtype = infer_jax_dtype(state.processed_data[feature_name])
 
-        features: Features = {
-            "obs": jnp.array(state.processed_data[feature_name].values, dtype=dtype)
-        }
+        if test:
+
+            features: Features = {
+                "obs": jnp.array(state.processed_data[~state.processed_data[test]][feature_name].values, dtype=dtype)
+            }
+            test_features: Features = {
+                "obs": jnp.array(state.processed_data[state.processed_data[test]][feature_name].values, dtype=dtype)
+            }
+            if state.test_features:
+                state.test_features.update(test_features)
+            else:
+                state.test_features = test_features
+
+        else:
+
+            features: Features = {
+                "obs": jnp.array(state.processed_data[feature_name].values, dtype=dtype)
+            }
 
         if state.features:
             state.features.update(features)
@@ -72,6 +89,7 @@ def extract_features(
     interactions: bool = False,
     effect_coding_for_main_effects: bool = False,
     standardise: bool = False,
+    test: Optional[str] = None,
 ):
     """
     Extract inputs for GLMs:
@@ -80,6 +98,14 @@ def extract_features(
       - Interactions:
           * categorical × categorical: dims [c1, c2]
           * continuous × categorical: feature '{x}_{g}_effects'
+
+    Args:
+        categorical_features: List of columns to treat as categorical variables
+        continuous_features: List of columns to treat as continuous variables
+        interactions: Whether to generate interaction terms
+        effect_coding_for_main_effects: Whether to use effect coding (n-1 parameters)
+        standardise: Whether to standardise continuous features
+        test: Column name indicating test data for train/test split
     """
     categorical_features = categorical_features or []
     continuous_features = continuous_features or []
@@ -102,22 +128,46 @@ def extract_features(
             )
 
         features: Features = {}
+        test_features: Features = {} if test else None
         coords: Coords = {}
         dims: Dims = {}
+
+        # Determine train/test split if test column provided
+        train_mask = None
+        test_mask = None
+        if test and test in state.processed_data.columns:
+            test_mask = state.processed_data[test].astype(bool)
+            train_mask = ~test_mask
+            if display:
+                n_train = train_mask.sum()
+                n_test = test_mask.sum()
+                display.logger.info(f"Processing with train/test split - Train: {n_train}, Test: {n_test}")
 
         # continuous
         for feat in continuous_features:
             series = state.processed_data[feat]
             dtype = infer_jax_dtype(series)
             if standardise:
-                mean = float(series.mean())
-                std = float(series.std())
+                # Standardise using train data statistics only
+                if train_mask is not None:
+                    train_series = series[train_mask]
+                    mean = float(train_series.mean())
+                    std = float(train_series.std())
+                else:
+                    mean = float(series.mean())
+                    std = float(series.std())
                 state.processed_data[feat] = (series - mean) / (std + 1e-8)
                 if display:
                     display.logger.info(
                         f"Standardised continuous '{feat}' (mean: {mean}, std: {std})"
                     )
-            features[feat] = jnp.asarray(state.processed_data[feat].values, dtype=dtype)
+
+            if test_mask is not None:
+                features[feat] = jnp.asarray(state.processed_data.loc[train_mask, feat].values, dtype=dtype)
+                test_features[feat] = jnp.asarray(state.processed_data.loc[test_mask, feat].values, dtype=dtype)
+            else:
+                features[feat] = jnp.asarray(state.processed_data[feat].values, dtype=dtype)
+
             if display:
                 display.logger.info(
                     f"Extracted continuous '{feat}' with dtype: {dtype}"
@@ -127,8 +177,18 @@ def extract_features(
         for cat in categorical_features:
             series = state.processed_data[cat]
             code, index = pd.factorize(series, sort=True)
-            features[f"{cat}_index"] = jnp.asarray(code, dtype=jnp.int32)
-            features[f"num_{cat}"] = len(index)
+
+            if test_mask is not None:
+                train_code = code[train_mask]
+                test_code = code[test_mask]
+                features[f"{cat}_index"] = jnp.asarray(train_code, dtype=jnp.int32)
+                test_features[f"{cat}_index"] = jnp.asarray(test_code, dtype=jnp.int32)
+                features[f"num_{cat}"] = len(index)
+                test_features[f"num_{cat}"] = len(index)
+            else:
+                features[f"{cat}_index"] = jnp.asarray(code, dtype=jnp.int32)
+                features[f"num_{cat}"] = len(index)
+
             coords[cat] = index.tolist()
             dims[f"{cat}_effects"] = [cat]
             if effect_coding_for_main_effects and len(index) > 1:
@@ -162,11 +222,22 @@ def extract_features(
             # continuous × categorical: add feature + dims for per-category slopes
             for x in continuous_features:
                 x_dtype = infer_jax_dtype(state.processed_data[x])
-                x_values = jnp.asarray(state.processed_data[x].values, dtype=x_dtype)
+                if test_mask is not None:
+                    x_train_values = jnp.asarray(state.processed_data.loc[train_mask, x].values, dtype=x_dtype)
+                    x_test_values = jnp.asarray(state.processed_data.loc[test_mask, x].values, dtype=x_dtype)
+                else:
+                    x_values = jnp.asarray(state.processed_data[x].values, dtype=x_dtype)
+
                 for g in categorical_features:
                     # per-observation regressor reused with category-index in the model
-                    features[f"{g}_{x}"] = x_values
-                    features[f"{x}_{g}"] = x_values  # allow either order
+                    if test_mask is not None:
+                        features[f"{g}_{x}"] = x_train_values
+                        features[f"{x}_{g}"] = x_train_values  # allow either order
+                        test_features[f"{g}_{x}"] = x_test_values
+                        test_features[f"{x}_{g}"] = x_test_values  # allow either order
+                    else:
+                        features[f"{g}_{x}"] = x_values
+                        features[f"{x}_{g}"] = x_values  # allow either order
                     # effects: one slope per category level (optionally constrained)
                     dims[f"{g}_{x}_effects"] = [g]
                     dims[f"{x}_{g}_effects"] = [g]  # allow either order
@@ -180,6 +251,13 @@ def extract_features(
             state.features.update(features)
         else:
             state.features = features
+
+        # Update test_features if test split was used
+        if test_features:
+            if state.test_features:
+                state.test_features.update(test_features)
+            else:
+                state.test_features = test_features
 
         if coords:
             if state.coords:
@@ -425,7 +503,7 @@ def groupby(
 ) -> DataProcessor:
     """
     Group the data by specified columns and aggregate scores for binomial models.
-    adds n_correct and n_total columsn to the dataset.
+    adds n_correct and n_total columns to the dataset.
 
     Args:
         groupby_columns: A list of columns to group by.
