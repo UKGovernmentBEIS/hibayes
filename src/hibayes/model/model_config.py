@@ -5,6 +5,7 @@ from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 import yaml
+from numpyro.infer.initialization import init_to_mean, init_to_median, init_to_uniform
 
 from ..registry import RegistryInfo, _import_path, registry_get
 from ..utils import init_logger
@@ -23,6 +24,12 @@ LINK_FUNCTION_MAP: Dict[str, Callable[[np.ndarray], np.ndarray]] = {
     "cloglog": cloglog_to_prob,
 }
 
+INIT_FUNCTION_MAP: Dict[str, Callable[..., Any]] = {
+    "median": init_to_median,
+    "mean": init_to_mean,
+    "uniform": init_to_uniform,
+}
+
 
 @dataclass(frozen=True, slots=True)
 class FitConfig:
@@ -34,6 +41,9 @@ class FitConfig:
     progress_bar: bool = True
     target_accept: float = 0.95
     max_tree_depth: int = 10
+    init_strategy: Callable[..., Any] = field(
+        default=init_to_median()
+    )  # initialization strategy for NUTS
 
     def merged(self, **updates: Any) -> "FitConfig":
         """Return a *new* FitConfig with updates applied."""
