@@ -219,11 +219,18 @@ def ordered_logistic_model(
                     coefs = jnp.concatenate([free_coefs, jnp.array([last_coef])])
                     numpyro.deterministic(f"{effect}_effects", coefs)
                 else:
-                    # Standard dummy coding
-                    coefs = numpyro.sample(
-                        f"{effect}_effects", prior_main_effect.expand([n_levels])
+                    # Standard dummy coding (reference category is 0)
+                    coefs = jnp.concatenate(
+                        [
+                            jnp.array([0.0]),  # Reference category
+                            numpyro.sample(
+                                f"{effect}_effects_raw",
+                                prior_main_effect.expand([n_levels - 1]),
+                            ),
+                        ]
                     )
-
+                    numpyro.deterministic(f"{effect}_effects", coefs)
+                    
                 eta += coefs[idx]
 
         # Add interaction effects
@@ -557,7 +564,7 @@ def linear_group_binomial(
                         [
                             jnp.array([0.0]),  # Reference category
                             numpyro.sample(
-                                f"{effect}_effects",
+                                f"{effect}_effects_raw",
                                 prior_main_effect.expand([n_levels - 1]),
                             ),
                         ]
