@@ -20,6 +20,7 @@ from inspect_ai.log import (
 from inspect_ai.model import ModelUsage
 from inspect_ai.scorer import Score
 
+from hibayes.analysis import _load_extracted_data
 from hibayes.load import (
     base_extractor,
     token_extractor,
@@ -147,6 +148,68 @@ paths:
         cfg = DataLoaderConfig.from_yaml(str(cfg_file))
     assert len(cfg.enabled_extractors) == 2
     assert cfg.files_to_process == ["/data"]
+
+
+def test_dataloaderconfig_extracted_data(tmp_path: Path):
+    """Test that extracted_data can be configured."""
+    cfg = DataLoaderConfig.from_dict(
+        {
+            "paths": {
+                "extracted_data": [
+                    str(tmp_path / "data1.csv"),
+                    str(tmp_path / "data2.parquet"),
+                ]
+            },
+        }
+    )
+    assert cfg.extracted_data == [
+        str(tmp_path / "data1.csv"),
+        str(tmp_path / "data2.parquet"),
+    ]
+    assert cfg.files_to_process == []
+
+
+def test_dataloaderconfig_mutual_exclusivity():
+    """Test that files_to_process and extracted_data cannot both be specified."""
+    with pytest.raises(ValueError, match="Cannot specify both"):
+        DataLoaderConfig.from_dict(
+            {
+                "paths": {
+                    "files_to_process": ["/path/to/logs"],
+                    "extracted_data": ["/path/to/data.csv"],
+                }
+            }
+        )
+
+
+def test_dataloaderconfig_mutual_exclusivity_direct():
+    """Test mutual exclusivity when creating DataLoaderConfig directly."""
+    with pytest.raises(ValueError, match="Cannot specify both"):
+        DataLoaderConfig(
+            files_to_process=["/path/to/logs"],
+            extracted_data=["/path/to/data.csv"],
+        )
+
+
+def test_dataloaderconfig_empty_warns(caplog):
+    """Test that a warning is logged when no data source is specified."""
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        DataLoaderConfig.from_dict({})
+    assert "No data source specified" in caplog.text
+
+
+def test_dataloaderconfig_cache_path_no_warning(caplog):
+    """Test that no warning is logged when cache_path is provided."""
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        cfg = DataLoaderConfig.from_dict(
+            {"paths": {"cache_path": "/path/to/cache.jsonl"}}
+        )
+    assert "No data source specified" not in caplog.text
+    assert cfg.cache_path == "/path/to/cache.jsonl"
 
 
 def test_processor_setup(dl_cfg):
@@ -379,3 +442,72 @@ def test_processor_with_mixed_extractors(eval_log, log_info):
     # Should have results from both extractors
     assert "score" in row  # From base_extractor
     assert "total_messages" in row  # From message_count_extractor
+
+
+# Tests for _load_extracted_data function
+
+
+def test_load_extracted_data_csv(tmp_path: Path):
+    """Test loading data from a CSV file."""
+    csv_file = tmp_path / "data.csv"
+    df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
+    df.to_csv(csv_file, index=False)
+
+    result = _load_extracted_data([str(csv_file)])
+    assert len(result) == 3
+    assert list(result.columns) == ["a", "b"]
+    assert result["a"].tolist() == [1, 2, 3]
+
+
+def test_load_extracted_data_parquet(tmp_path: Path):
+    """Test loading data from a parquet file."""
+    parquet_file = tmp_path / "data.parquet"
+    df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
+    df.to_parquet(parquet_file, index=False)
+
+    result = _load_extracted_data([str(parquet_file)])
+    assert len(result) == 3
+    assert list(result.columns) == ["a", "b"]
+
+
+def test_load_extracted_data_jsonl(tmp_path: Path):
+    """Test loading data from a JSONL file."""
+    jsonl_file = tmp_path / "data.jsonl"
+    df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
+    df.to_json(jsonl_file, orient="records", lines=True)
+
+    result = _load_extracted_data([str(jsonl_file)])
+    assert len(result) == 3
+    assert list(result.columns) == ["a", "b"]
+
+
+def test_load_extracted_data_multiple_files(tmp_path: Path):
+    """Test loading and concatenating multiple data files."""
+    csv_file = tmp_path / "data1.csv"
+    parquet_file = tmp_path / "data2.parquet"
+
+    df1 = pd.DataFrame({"a": [1, 2], "b": ["x", "y"]})
+    df2 = pd.DataFrame({"a": [3, 4], "b": ["z", "w"]})
+
+    df1.to_csv(csv_file, index=False)
+    df2.to_parquet(parquet_file, index=False)
+
+    result = _load_extracted_data([str(csv_file), str(parquet_file)])
+    assert len(result) == 4
+    assert result["a"].tolist() == [1, 2, 3, 4]
+    assert result["b"].tolist() == ["x", "y", "z", "w"]
+
+
+def test_load_extracted_data_unsupported_format(tmp_path: Path):
+    """Test that unsupported file formats raise an error."""
+    txt_file = tmp_path / "data.txt"
+    txt_file.write_text("some text")
+
+    with pytest.raises(ValueError, match="Unsupported file extension"):
+        _load_extracted_data([str(txt_file)])
+
+
+def test_load_extracted_data_empty_list():
+    """Test that an empty list raises an error."""
+    with pytest.raises(ValueError, match="No data files were loaded"):
+        _load_extracted_data([])

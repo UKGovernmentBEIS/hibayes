@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import pandas as pd
 import yaml
@@ -17,10 +17,48 @@ from .platform import PlatformConfig
 from .process import ProcessConfig
 from .registry import registry_info
 from .ui import ModellingDisplay
+from .utils import init_logger
+
+logger = init_logger()
 
 # TODO: data loader which checks if .json or .eval is passed
 # TODO: before data is loaded from eval logs check that the extractors are going
 # to extract the required variables.
+
+
+def _load_extracted_data(file_paths: List[str]) -> pd.DataFrame:
+    """
+    Load pre-extracted data from CSV, parquet, or JSONL files.
+
+    Args:
+        file_paths: List of paths to data files.
+
+    Returns:
+        Concatenated DataFrame from all files.
+    """
+    dfs = []
+    for path in file_paths:
+        path = Path(path)
+        ext = path.suffix.lower()
+        if ext == ".parquet":
+            dfs.append(pd.read_parquet(path))
+        elif ext == ".csv":
+            dfs.append(pd.read_csv(path))
+        elif ext in (".jsonl", ".json"):
+            dfs.append(pd.read_json(path, lines=True))
+        else:
+            raise ValueError(
+                f"Unsupported file extension: {ext}. "
+                "Supported formats: .csv, .parquet, .jsonl, .json"
+            )
+        logger.info(f"Loaded {path} with shape {dfs[-1].shape}")
+
+    if not dfs:
+        raise ValueError("No data files were loaded from extracted_data paths.")
+
+    df = pd.concat(dfs, ignore_index=True)
+    logger.info(f"Combined DataFrame shape: {df.shape}")
+    return df
 
 
 @dataclass
@@ -72,10 +110,24 @@ def load_data(
     config: DataLoaderConfig,
     display: ModellingDisplay,
 ) -> AnalysisState:
-    df = get_sample_df(
-        display=display,
-        config=config,
-    )
+    # Check if we're loading pre-extracted data or processing eval logs
+    if config.extracted_data:
+        # Load pre-extracted CSV/parquet/JSONL files
+        if not display.is_live:
+            display.start()
+        display.update_header("Loading Pre-Extracted Data")
+        with display.capture_logs():
+            logger.info(f"Loading extracted data from: {config.extracted_data}")
+            df = _load_extracted_data(config.extracted_data)
+            display.update_stat("Files loaded", len(config.extracted_data))
+            display.update_stat("Total rows", len(df))
+    else:
+        # Process eval logs using extractors
+        df = get_sample_df(
+            display=display,
+            config=config,
+        )
+
     if display.is_live:
         display.stop()
 
