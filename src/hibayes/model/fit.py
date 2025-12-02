@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING
 import arviz as az
 import jax
 from numpyro.infer import HMC, MCMC, NUTS
-from numpyro.infer.initialization import init_to_median
+
+from .model_config import INIT_FUNCTION_MAP
 
 if TYPE_CHECKING:
     from ..analysis_state import ModelAnalysisState
@@ -22,12 +23,13 @@ def fit(
         display.update_header(f"Fitting {model_analysis_state.model_name}")
 
     cfg = model_analysis_state.model_config.fit
+    init_fn = INIT_FUNCTION_MAP[cfg.init_strategy]
     if cfg.method == "NUTS":
         kernel = NUTS(
             model_analysis_state.model,
             target_accept_prob=cfg.target_accept,
             max_tree_depth=cfg.max_tree_depth,
-            init_strategy=init_to_median(),
+            init_strategy=init_fn(),
         )
     elif cfg.method == "HMC":
         kernel = HMC(model_analysis_state.model)

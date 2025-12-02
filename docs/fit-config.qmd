@@ -17,6 +17,7 @@ The FitConfig controls how hibayes runs MCMC sampling to fit your Bayesian model
 | `progress_bar` | bool | `true` | Show sampling progress bar |
 | `target_accept` | float | `0.95` | Target acceptance probability (NUTS only) |
 | `max_tree_depth` | int | `10` | Maximum tree depth (NUTS only) |
+| `init_strategy` | string | `"median"` | Parameter initialisation strategy: `"median"`, `"mean"`, or `"uniform"` |
 
 ## Configuring in YAML
 
@@ -61,6 +62,22 @@ fit:
   method: HMC
 ```
 
+## Initialisation strategies
+
+The `init_strategy` option controls how MCMC chains are initialised. Good initialisation can help chains converge faster and avoid getting stuck in poor regions of the posterior.
+
+| Strategy | Description |
+|----------|-------------|
+| `"median"` | Initialise to the median of the prior distribution (default) |
+| `"mean"` | Initialise to the mean of the prior distribution |
+| `"uniform"` | Initialise uniformly within the support of the prior |
+
+```yaml
+fit:
+  method: NUTS
+  init_strategy: uniform  # <1>
+```
+1. If you have very wide priors, `"uniform"` can yield to instabilities.
 
 ## Relationship with platform config
 

@@ -59,7 +59,7 @@ def my_processor(
 - Continuous features: raw arrays (optionally standardised)
 - Interactions: categorical × categorical dims, continuous × categorical slopes
 
-Supports effect coding, custom reference categories, and custom category ordering.
+Supports effect coding, custom reference categories, custom category ordering, and train/test splitting.
 
 ### Data transformation
 
@@ -97,6 +97,26 @@ process:
     - extract_observed_feature
     - extract_features
 ```
+
+## Train/test splitting
+
+The `extract_features` processor supports train/test data splitting via the `test` parameter. This is useful for model validation and out-of-sample prediction.
+
+```yaml
+process:
+  processors:
+    - extract_features:
+        categorical_features: ["model", "task"]
+        continuous_features: ["difficulty"]
+        test: is_test  # Column name containing True/False for test rows
+        standardise: true
+```
+
+When `test` is specified:
+
+- **Features are split**: Training features go to `state.features`, test features go to `state.test_features`
+- **Standardisation uses train statistics**: Continuous features are standardised using the mean and standard deviation from training data only, then applied to both train and test sets
+- **Category ordering is consistent**: Categories are ordered based on the full dataset, ensuring train and test use the same index mappings
 
 ## Custom processors
 
