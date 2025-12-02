@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import tempfile
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from typing import Any, Dict, Iterator, List, Optional
@@ -79,8 +80,9 @@ class LogProcessor:
                 extractor_name = getattr(extractor, "__name__", "unknown_extractor")
                 error_msg = f"Error in {extractor_name}: {str(e)}"
                 errors.append(error_msg)
-                logger.info(
-                    f"Error processing sample {sample.id} with {extractor_name}: {str(e)}"
+                logger.error(
+                    f"Error processing sample {sample.id} with {extractor_name}:\n"
+                    f"{traceback.format_exc()}"
                 )
                 if display:
                     display.update_stat(
@@ -180,7 +182,10 @@ def process_eval_logs_parallel(
                 display.update_task("Identifying processing tasks", advance=1)
 
         except Exception as e:
-            logger.error(f"Error preparing log {log_info} for processing: {e}")
+            logger.error(
+                f"Error preparing log {log_info} for processing:\n"
+                f"{traceback.format_exc()}"
+            )
             if display:
                 display.update_stat(
                     "Errors encountered",
@@ -216,7 +221,10 @@ def process_eval_logs_parallel(
             }
         except Exception as e:
             error_msg = f"Error in {sample.id}: {str(e)}"
-            logger.error(f"Error processing sample {sample.id}: {str(e)}")
+            logger.error(
+                f"Error processing sample {sample.id}:\n"
+                f"{traceback.format_exc()}"
+            )
             return {
                 "model": eval_log_header.eval.model,
                 "sample_id": sample.id,

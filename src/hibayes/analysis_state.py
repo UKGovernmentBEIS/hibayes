@@ -326,7 +326,7 @@ class AnalysisState:
         ] = None,  # variable names to coordinates - used for nice plotting vars
         models: List[ModelAnalysisState] = [],
         communicate: Dict[str, plt.Figure | pd.DataFrame] = {},
-        logs: List[str] = [],
+        logs: Optional[Dict[str, List[str]]] = None,  # logs keyed by stage name
         display_stats: Optional[Dict[str, Any]] = None,  # persistent display statistics
     ) -> None:
         self._data: pd.DataFrame = (
@@ -342,7 +342,7 @@ class AnalysisState:
         self._communicate: Dict[str, plt.Figure | pd.DataFrame] | None = (
             communicate  # plots of findings
         )
-        self._logs: List[str] = logs
+        self._logs: Dict[str, List[str]] = logs if logs is not None else {}
         self._display_stats: Dict[str, Any] = (
             display_stats if display_stats is not None else {}
         )
@@ -468,18 +468,24 @@ class AnalysisState:
         self._communicate[unique_name] = table
 
     @property
-    def logs(self) -> List[str]:
-        """Get the logs."""
+    def logs(self) -> Dict[str, List[str]]:
+        """Get all logs (dict keyed by stage name)."""
         return self._logs
 
     @logs.setter
-    def logs(self, logs: List[str]) -> None:
+    def logs(self, logs: Dict[str, List[str]]) -> None:
         """Set the logs."""
         self._logs = logs
 
-    def add_log(self, log_entry: str) -> None:
-        """Add a log entry."""
-        self._logs.append(log_entry)
+    def get_stage_logs(self, stage: str) -> List[str]:
+        """Get logs for a specific stage."""
+        return self._logs.get(stage, [])
+
+    def add_log(self, log_entry: str, stage: str) -> None:
+        """Add a log entry for a specific stage."""
+        if stage not in self._logs:
+            self._logs[stage] = []
+        self._logs[stage].append(log_entry)
 
     @property
     def models(self) -> List[ModelAnalysisState]:
@@ -557,6 +563,11 @@ class AnalysisState:
 
             <path>/
               ├── data.parquet
+              ├── logs/
+              │     ├── logs_load.txt
+              │     ├── logs_process.txt
+              │     ├── logs_model.txt
+              │     └── logs_communicate.txt
               ├── communicate/
               │     ├── <name>.png
               │     └── <name>.parquet
@@ -587,11 +598,16 @@ class AnalysisState:
         if self.dims is not None:
             _dump_json(self.dims, path / "dims.json")
 
-        # Save logs
+        # Save logs to logs/logs_<stage>.txt for each stage
         if self._logs:
-            with (path / "logs.txt").open("w", encoding="utf-8") as fp:
-                for log_entry in self._logs:
-                    fp.write(f"{log_entry}\n")
+            logs_dir = path / "logs"
+            _ensure_dir(logs_dir)
+            for stage_name, stage_logs in self._logs.items():
+                if stage_logs:
+                    log_filename = f"logs_{stage_name}.txt"
+                    with (logs_dir / log_filename).open("w", encoding="utf-8") as fp:
+                        for log_entry in stage_logs:
+                            fp.write(f"{log_entry}\n")
 
         # Save display stats
         if self._display_stats:
@@ -647,12 +663,6 @@ class AnalysisState:
         else:
             dims = None
 
-        # Load logs
-        logs = []
-        if (path / "logs.txt").exists():
-            with (path / "logs.txt").open("r", encoding="utf-8") as fp:
-                logs = [line.strip() for line in fp.readlines()]
-
         # Load display stats
         display_stats = {}
         if (path / "display_stats.json").exists():
@@ -693,6 +703,5 @@ class AnalysisState:
             coords=coords,
             dims=dims,
             communicate=communicate,
-            logs=logs,
             display_stats=display_stats,
         )
