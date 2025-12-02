@@ -106,6 +106,42 @@ class AnalysisConfig:
         )
 
 
+def _extract_df_stats(df: pd.DataFrame, display: ModellingDisplay) -> None:
+    """
+    Extract summary statistics from a DataFrame and update the display.
+
+    Looks for common columns like 'model', 'dataset', etc. and reports
+    unique values found. Treats each row as a sample.
+    """
+    # Total samples (rows)
+    display.update_stat("Samples found", len(df))
+
+    # Check for model column (AI models detected)
+    if "model" in df.columns:
+        models = set(df["model"].dropna().unique())
+        if models:
+            display.update_stat("AI Models detected", models)
+            logger.info(f"AI Models detected: {models}")
+
+    # Check for dataset column
+    if "dataset" in df.columns:
+        datasets = set(df["dataset"].dropna().unique())
+        if datasets:
+            display.update_stat("Datasets", datasets)
+            logger.info(f"Datasets: {datasets}")
+
+    # Check for task column
+    if "task" in df.columns:
+        tasks = set(df["task"].dropna().unique())
+        if tasks:
+            display.update_stat("Tasks", tasks)
+            logger.info(f"Tasks: {tasks}")
+
+    # Log column summary
+    logger.info(f"DataFrame columns: {list(df.columns)}")
+    logger.info(f"DataFrame shape: {df.shape}")
+
+
 def load_data(
     config: DataLoaderConfig,
     display: ModellingDisplay,
@@ -120,7 +156,9 @@ def load_data(
             logger.info(f"Loading extracted data from: {config.extracted_data}")
             df = _load_extracted_data(config.extracted_data)
             display.update_stat("Files loaded", len(config.extracted_data))
-            display.update_stat("Total rows", len(df))
+
+            # Extract summary statistics from the loaded data
+            _extract_df_stats(df, display)
     else:
         # Process eval logs using extractors
         df = get_sample_df(
