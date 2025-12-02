@@ -81,7 +81,7 @@ data_loader:
     files_to_process:
       - path/to/logs
   extractors:
-    paths: path/to/above/python/file.py
+    path: path/to/above/python/file.py
     enabled:
       - base_extractor  # <1>
       - your_custom_extractor: {keyword: refuse} # <2>
