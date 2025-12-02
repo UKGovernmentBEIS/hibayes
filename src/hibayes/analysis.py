@@ -173,7 +173,7 @@ def load_data(
     analysis_state = AnalysisState(data=df)
 
     # Capture logs and display stats from the loading process
-    analysis_state.logs = display.get_all_logs()
+    analysis_state.logs["load"] = display.get_all_logs()
     analysis_state.display_stats = display.get_stats_for_persistence()
 
     return analysis_state
@@ -214,7 +214,7 @@ def process_data(
         display.stop()
 
     # Capture all logs from display and add to analysis state
-    analysis_state.logs = display.get_all_logs()
+    analysis_state.logs["process"] = display.get_all_logs()
     # Capture display stats for persistence
     analysis_state.display_stats = display.get_stats_for_persistence()
     return analysis_state
@@ -268,7 +268,7 @@ def model(
         display.stop()
 
     # Update logs from display
-    analysis_state.logs = display.get_all_logs()
+    analysis_state.logs["model"] = display.get_all_logs()
     # Capture display stats for persistence
     analysis_state.display_stats = display.get_stats_for_persistence()
     return analysis_state
@@ -339,7 +339,7 @@ def communicate(
         display.stop()
 
     # Update logs from display
-    analysis_state.logs = display.get_all_logs()
+    analysis_state.logs["communicate"] = display.get_all_logs()
     # Capture display stats for persistence
     analysis_state.display_stats = display.get_stats_for_persistence()
     return analysis_state
