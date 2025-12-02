@@ -22,6 +22,7 @@ class DataLoaderConfig:
     # Configuration properties
     enabled_extractors: List[Extractor] = field(default_factory=list)
     files_to_process: List[str] = field(default_factory=list)
+    extracted_data: List[str] = field(default_factory=list)
     cache_path: str | None = None
     output_dir: str | None = None
     max_workers: int = 10
@@ -29,12 +30,27 @@ class DataLoaderConfig:
     cutoff: datetime.datetime | None = None
 
     def __post_init__(self) -> None:
-        """Set up default extractors if none specified."""
+        """Set up default extractors if none specified and validate config."""
         if not self.enabled_extractors:
             self.enabled_extractors = [
                 registry_get(RegistryInfo(type="extractor", name=extractor))()
                 for extractor in self.DEFAULT_EXTRACTORS
             ]
+
+        # Validate mutual exclusivity
+        if self.files_to_process and self.extracted_data:
+            raise ValueError(
+                "Cannot specify both 'files_to_process' and 'extracted_data'. "
+                "Use 'files_to_process' for inspect eval logs, or 'extracted_data' "
+                "for pre-extracted CSV/parquet files."
+            )
+
+        # Validate at least one data source is provided
+        if not self.files_to_process and not self.extracted_data and not self.cache_path:
+            logger.warning(
+                "No data source specified. Provide 'files_to_process' for eval logs, "
+                "'extracted_data' for pre-extracted files, or 'cache_path' for cached data."
+            )
 
     @classmethod
     def from_yaml(cls, yaml_path: str) -> "DataLoaderConfig":
@@ -64,6 +80,7 @@ class DataLoaderConfig:
         # get paths for logs and processed data
         config_paths = config_dict.get("paths", {})
         files_to_process = config_paths.get("files_to_process", [])
+        extracted_data = config_paths.get("extracted_data", [])
         cache_path = config_paths.get("cache_path")
         output_dir = config_paths.get("output_dir")
 
@@ -107,6 +124,7 @@ class DataLoaderConfig:
         return cls(
             enabled_extractors=enabled_extractors,
             files_to_process=files_to_process,
+            extracted_data=extracted_data,
             cache_path=cache_path,
             output_dir=output_dir,
         )

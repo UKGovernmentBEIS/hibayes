@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import pandas as pd
 import yaml
@@ -17,10 +17,48 @@ from .platform import PlatformConfig
 from .process import ProcessConfig
 from .registry import registry_info
 from .ui import ModellingDisplay
+from .utils import init_logger
+
+logger = init_logger()
 
 # TODO: data loader which checks if .json or .eval is passed
 # TODO: before data is loaded from eval logs check that the extractors are going
 # to extract the required variables.
+
+
+def _load_extracted_data(file_paths: List[str]) -> pd.DataFrame:
+    """
+    Load pre-extracted data from CSV, parquet, or JSONL files.
+
+    Args:
+        file_paths: List of paths to data files.
+
+    Returns:
+        Concatenated DataFrame from all files.
+    """
+    dfs = []
+    for path in file_paths:
+        path = Path(path)
+        ext = path.suffix.lower()
+        if ext == ".parquet":
+            dfs.append(pd.read_parquet(path))
+        elif ext == ".csv":
+            dfs.append(pd.read_csv(path))
+        elif ext in (".jsonl", ".json"):
+            dfs.append(pd.read_json(path, lines=True))
+        else:
+            raise ValueError(
+                f"Unsupported file extension: {ext}. "
+                "Supported formats: .csv, .parquet, .jsonl, .json"
+            )
+        logger.info(f"Loaded {path} with shape {dfs[-1].shape}")
+
+    if not dfs:
+        raise ValueError("No data files were loaded from extracted_data paths.")
+
+    df = pd.concat(dfs, ignore_index=True)
+    logger.info(f"Combined DataFrame shape: {df.shape}")
+    return df
 
 
 @dataclass
@@ -68,14 +106,66 @@ class AnalysisConfig:
         )
 
 
+def _extract_df_stats(df: pd.DataFrame, display: ModellingDisplay) -> None:
+    """
+    Extract summary statistics from a DataFrame and update the display.
+
+    Looks for common columns like 'model', 'dataset', etc. and reports
+    unique values found. Treats each row as a sample.
+    """
+    # Total samples (rows)
+    display.update_stat("Samples found", len(df))
+
+    # Check for model column (AI models detected)
+    if "model" in df.columns:
+        models = set(df["model"].dropna().unique())
+        if models:
+            display.update_stat("AI Models detected", models)
+            logger.info(f"AI Models detected: {models}")
+
+    # Check for dataset column
+    if "dataset" in df.columns:
+        datasets = set(df["dataset"].dropna().unique())
+        if datasets:
+            display.update_stat("Datasets", datasets)
+            logger.info(f"Datasets: {datasets}")
+
+    # Check for task column
+    if "task" in df.columns:
+        tasks = set(df["task"].dropna().unique())
+        if tasks:
+            display.update_stat("Tasks", tasks)
+            logger.info(f"Tasks: {tasks}")
+
+    # Log column summary
+    logger.info(f"DataFrame columns: {list(df.columns)}")
+    logger.info(f"DataFrame shape: {df.shape}")
+
+
 def load_data(
     config: DataLoaderConfig,
     display: ModellingDisplay,
 ) -> AnalysisState:
-    df = get_sample_df(
-        display=display,
-        config=config,
-    )
+    # Check if we're loading pre-extracted data or processing eval logs
+    if config.extracted_data:
+        # Load pre-extracted CSV/parquet/JSONL files
+        if not display.is_live:
+            display.start()
+        display.update_header("Loading Pre-Extracted Data")
+        with display.capture_logs():
+            logger.info(f"Loading extracted data from: {config.extracted_data}")
+            df = _load_extracted_data(config.extracted_data)
+            display.update_stat("Files loaded", len(config.extracted_data))
+
+            # Extract summary statistics from the loaded data
+            _extract_df_stats(df, display)
+    else:
+        # Process eval logs using extractors
+        df = get_sample_df(
+            display=display,
+            config=config,
+        )
+
     if display.is_live:
         display.stop()
 
@@ -83,7 +173,7 @@ def load_data(
     analysis_state = AnalysisState(data=df)
 
     # Capture logs and display stats from the loading process
-    analysis_state.logs = display.get_all_logs()
+    analysis_state.logs["load"] = display.get_all_logs()
     analysis_state.display_stats = display.get_stats_for_persistence()
 
     return analysis_state
@@ -124,7 +214,7 @@ def process_data(
         display.stop()
 
     # Capture all logs from display and add to analysis state
-    analysis_state.logs = display.get_all_logs()
+    analysis_state.logs["process"] = display.get_all_logs()
     # Capture display stats for persistence
     analysis_state.display_stats = display.get_stats_for_persistence()
     return analysis_state
@@ -178,7 +268,7 @@ def model(
         display.stop()
 
     # Update logs from display
-    analysis_state.logs = display.get_all_logs()
+    analysis_state.logs["model"] = display.get_all_logs()
     # Capture display stats for persistence
     analysis_state.display_stats = display.get_stats_for_persistence()
     return analysis_state
@@ -249,7 +339,7 @@ def communicate(
         display.stop()
 
     # Update logs from display
-    analysis_state.logs = display.get_all_logs()
+    analysis_state.logs["communicate"] = display.get_all_logs()
     # Capture display stats for persistence
     analysis_state.display_stats = display.get_stats_for_persistence()
     return analysis_state

@@ -1,0 +1,83 @@
+---
+title: "Fit Configuration"
+description: "MCMC sampler settings for model fitting"
+---
+
+The FitConfig controls how hibayes runs MCMC sampling to fit your Bayesian models. It configures the sampler algorithm, number of samples, chains, and tuning parameters.
+
+## Configuration options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `method` | string | `"NUTS"` | MCMC sampler: `"NUTS"` or `"HMC"` |
+| `samples` | int | `2000` | Number of posterior samples per chain |
+| `warmup` | int | `1000` | Number of warmup (burn-in) samples |
+| `chains` | int | `4` | Number of independent MCMC chains |
+| `seed` | int | `0` | Random seed for reproducibility |
+| `progress_bar` | bool | `true` | Show sampling progress bar |
+| `target_accept` | float | `0.95` | Target acceptance probability (NUTS only) |
+| `max_tree_depth` | int | `10` | Maximum tree depth (NUTS only) |
+
+## Configuring in YAML
+
+FitConfig is nested under your model configuration:
+
+```yaml
+model:
+  models:
+    - name: two_level_group_binomial
+      config:
+        fit:
+          method: NUTS
+          samples: 2000
+          warmup: 1000
+          chains: 4
+          seed: 42
+          target_accept: 0.95
+          max_tree_depth: 10
+```
+
+## Sampler methods
+
+### NUTS (default)
+
+The No-U-Turn Sampler is an adaptive extension of HMC that automatically tunes step size and trajectory length. Recommended for most models.
+
+```yaml
+fit:
+  method: NUTS
+  target_accept: 0.95  # <1>
+  max_tree_depth: 10   # <2>
+```
+1. Higher values (0.9-0.99) improve sampling in difficult posteriors but slow down sampling.
+2. Increase if you see warnings about hitting max tree depth.
+
+### HMC
+
+Hamiltonian Monte Carlo - the base algorithm. Use when you need more control or NUTS is having issues.
+
+```yaml
+fit:
+  method: HMC
+```
+
+
+## Relationship with platform config
+
+The [platform configuration](platform.qmd) determines *how* chains are executed (parallel vs sequential), while FitConfig determines *what* to run (number of chains, samples, etc.).
+
+```yaml
+platform:
+  device_type: cpu
+  num_devices: 4
+  chain_method: parallel  # <1>
+
+model:
+  models:
+    - name: my_model
+      config:
+        fit:
+          chains: 4  # <2>
+```
+1. Platform controls parallelisation strategy
+2. FitConfig controls number of chains to run

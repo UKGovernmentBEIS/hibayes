@@ -2,3 +2,130 @@
 title: "Statistical Models"
 description: "Hierarchical Bayesian models for AI evaluation data"
 ---
+
+Models in hibayes are NumPyro probabilistic models that define the joint probability distribution over random variables and observed data. There are a number of built-in models you can select from.
+
+## What makes up a model?
+
+Models take processed [Features](processors.qmd) and define a probabilistic program using NumPyro primitives (`numpyro.sample`, `numpyro.deterministic`, etc.). They return nothing but instead define the generative process for your data.
+
+```python
+from hibayes.model import Model, model
+from hibayes.model.models import check_features
+
+import numpyro
+import numpyro.distributions as dist
+import jax.numpy as jnp
+import jax
+
+
+@model
+def my_custom_model(
+    prior_mu_loc: float = 0.0, # <1>
+    prior_mu_scale: float = 1.0,
+) -> Model:
+    """
+    A simple hierarchical model for grouped binomial data.
+    """
+    def model(features): # <2>
+        check_features(features, ["obs", "num_group", "group_index", "n_total"]) # <3>
+
+        overall_mean = numpyro.sample(
+            "overall_mean",
+            dist.Normal(prior_mu_loc, prior_mu_scale),
+        )
+
+        sigma_group = numpyro.sample(
+            "sigma_group",
+            dist.Exponential(rate=1.0),
+        )
+
+        z_group = numpyro.sample(
+            "z_group", dist.Normal(0, 1).expand([features["num_group"]])
+        )
+        group_effects = overall_mean + sigma_group * z_group
+        numpyro.deterministic("group_effects", group_effects) # <4>
+
+        logit_p = group_effects[features["group_index"]]
+
+        numpyro.sample(
+            "obs",
+            dist.Binomial(
+                total_count=features["n_total"],
+                probs=jax.nn.sigmoid(logit_p),
+            ),
+            obs=features["obs"], # <5>
+        )
+
+    return model
+```
+1. Any prior hyperparameters the user can configure through the config file.
+2. The inner function receives processed features from your data pipeline.
+3. Use `check_features` to validate that required features are present, providing helpful error messages.
+4. Use `numpyro.deterministic` to track derived quantities for posterior analysis.
+5. The observed data must be named `"obs"` - this is enforced by the `@model` decorator.
+
+## Built-in models
+
+### Hierarchical binomial models
+
+These models are designed for aggregated binomial data (success counts out of totals) with hierarchical grouping structures.
+
+**`simplified_group_binomial_exponential`** - A simple two-level hierarchical model with exponential prior on group variance. Good starting point for basic grouped data.
+
+**`two_level_group_binomial`** - Two-level hierarchical model with half-normal priors on variance components. Includes reparameterisation for better sampling.
+
+**`three_level_group_binomial`** - Three-level hierarchical model (group → subgroup → subsubgroup) with half-normal priors. Use for deeply nested data structures.
+
+**`three_level_group_binomial_exponential`** - Three-level hierarchical model with exponential priors on variance components. Alternative prior specification.
+
+### Linear models
+
+**`linear_group_binomial`** - Non-hierarchical binomial regression with configurable main effects and interactions. Treats categorical variables as predictors without nesting structure.
+
+**`ordered_logistic_model`** - Ordered logistic regression for ordinal outcomes. Supports main effects, interactions, and configurable cutpoint priors.
+
+## Configuring models
+
+Models are configured in your `hibayes.yaml` under the `model` section:
+
+```yaml
+model:
+  models:
+    - name: two_level_group_binomial
+      config:
+        fit:
+          samples: 2000
+          warmup: 1000
+          chains: 4
+        prior_mu_overall_loc: 0.0
+        prior_mu_overall_scale: 1.0
+```
+
+Or specify multiple models to compare:
+
+```yaml
+model:
+  models:
+    - name: simplified_group_binomial_exponential
+      config:
+        tag: "exponential_prior"
+    - name: two_level_group_binomial
+      config:
+        tag: "halfnormal_prior"
+```
+
+## Custom models
+
+To use a custom model, create a Python file with your model definition and reference it in your config:
+
+```yaml
+model:
+  path: path/to/my_models.py
+  models:
+    - name: my_custom_model
+      config:
+        prior_mu_loc: -1.0
+```
+
+The `@model` decorator registers your function so it can be accessed by name in the config.

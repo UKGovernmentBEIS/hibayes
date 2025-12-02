@@ -1801,3 +1801,114 @@ models:
             # Verify fit completed successfully
             assert model_analysis_state.is_fitted is True
             assert model_analysis_state.inference_data == mock_inference_data
+
+class TestDummyCoding:
+    """Test models with dummy coding (effect_coding_for_main_effects=False)."""
+
+    def test_ordered_logistic_model_with_dummy_coding_no_error(self):
+        """Test ordered_logistic_model with dummy coding doesn't raise errors."""
+        from hibayes.model.models import ordered_logistic_model
+
+        model_instance = ordered_logistic_model(
+            main_effects=["grader"],
+            effect_coding_for_main_effects=False,  # Use dummy coding
+            num_classes=5
+        )
+
+        features = {
+            "obs": jnp.array([0, 1, 2, 1, 0]),
+            "num_grader": 3,
+            "grader_index": jnp.array([0, 0, 1, 1, 2]),
+        }
+
+        # Mock numpyro.sample to return appropriate values based on sample name
+        def mock_sample_side_effect(name, *args, **kwargs):
+            if name == "intercept":
+                return jnp.array(0.0)  # Scalar
+            elif name == "grader_effects_raw":
+                return jnp.array([0.1, 0.2])  # Shape (2,) for n_levels - 1
+            elif name == "first_cutpoint":
+                return jnp.array(-2.0)  # Scalar
+            elif name == "cutpoint_diffs":
+                return jnp.array([0.5, 0.6, 0.7])  # Shape (num_classes - 2,) = (3,)
+            else:
+                # Default fallback
+                return jnp.array(0.0)
+        
+        with patch("numpyro.sample", side_effect=mock_sample_side_effect), \
+             patch("numpyro.deterministic"):
+            result = model_instance(features)
+            assert result is None
+
+    def test_linear_group_binomial_with_dummy_coding_no_error(self):
+        """Test linear_group_binomial with dummy coding doesn't raise errors."""
+        from hibayes.model.models import linear_group_binomial
+
+        model_instance = linear_group_binomial(
+            main_effects=["group"],
+            effect_coding_for_main_effects=False,  # Use dummy coding
+        )
+
+        features = {
+            "obs": jnp.array([5, 3, 7, 2]),
+            "n_total": jnp.array([10, 8, 12, 6]),
+            "num_group": 3,
+            "group_index": jnp.array([0, 0, 1, 1]),
+        }
+
+        # Mock numpyro.sample to return appropriate values based on sample name
+        def mock_sample_side_effect(name, *args, **kwargs):
+            if name == "intercept":
+                return jnp.array(0.0)  # Scalar
+            elif name == "group_effects_raw":
+                return jnp.array([0.1, 0.2])  # Shape (2,) for n_levels - 1
+            else:
+                # Default fallback
+                return jnp.array(0.0)
+        
+        with patch("numpyro.sample", side_effect=mock_sample_side_effect), \
+             patch("numpyro.deterministic"):
+            result = model_instance(features)
+            assert result is None
+
+    def test_dummy_coding_creates_deterministic_site(self):
+        """Test that dummy coding creates deterministic site with reference category."""
+        from hibayes.model.models import linear_group_binomial
+
+        model_instance = linear_group_binomial(
+            main_effects=["group"],
+            effect_coding_for_main_effects=False,
+        )
+
+        features = {
+            "obs": jnp.array([5, 3]),
+            "n_total": jnp.array([10, 8]),
+            "num_group": 3,
+            "group_index": jnp.array([0, 1]),
+        }
+
+        # Mock numpyro.sample to return appropriate values based on sample name
+        def mock_sample_side_effect(name, *args, **kwargs):
+            if name == "intercept":
+                return jnp.array(0.0)  # Scalar
+            elif name == "group_effects_raw":
+                return jnp.array([0.1, 0.2])  # Shape (2,) for n_levels - 1
+            else:
+                # Default fallback
+                return jnp.array(0.0)
+        
+        with patch("numpyro.sample", side_effect=mock_sample_side_effect) as mock_sample, \
+             patch("numpyro.deterministic") as mock_deterministic:
+
+            model_instance(features)
+
+            # Verify that a deterministic site was created for group_effects
+            deterministic_calls = [c[0][0] for c in mock_deterministic.call_args_list]
+            assert "group_effects" in deterministic_calls
+
+            # Verify that the sample site uses a different name (not group_effects)
+            sample_calls = [c[0][0] for c in mock_sample.call_args_list]
+            # After fix: should use "group_effects_raw" or similar
+            # Before fix: would use "group_effects" causing collision
+            assert "group_effects" not in sample_calls, "Sample site should not use 'group_effects' name"
+            assert "group_effects_raw" in sample_calls, "Sample site should use 'group_effects_raw' name"

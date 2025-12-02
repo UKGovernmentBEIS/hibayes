@@ -1,8 +1,7 @@
 import argparse
 import pathlib
 
-from ..analysis import AnalysisConfig, communicate, model, process_data
-from ..load import get_sample_df
+from ..analysis import AnalysisConfig, communicate, load_data, model, process_data
 from ..platform import configure_computation_platform
 from ..ui import ModellingDisplay
 
@@ -18,18 +17,16 @@ def run_full(args):
     )
 
     out.mkdir(parents=True, exist_ok=True)
-    df = get_sample_df(
-        display=display,
+
+    # Load data (handles both extracted_data and files_to_process)
+    analysis_state = load_data(
         config=config.data_loader,
-    )
-    df.to_parquet(
-        out / "data.parquet",
-        engine="pyarrow",  # auto might result in different engines in different setups)
-        compression="snappy",
+        display=display,
     )
 
+    # Process the loaded data
     analysis_state = process_data(
-        data=df,
+        analysis_state=analysis_state,
         config=config.data_process,
         display=display,
     )
@@ -67,6 +64,4 @@ def main():
     )
 
     args = parser.parse_args()
-    args.data = args.out + "/data.parquet"
-    args.analysis_state = args.out + "/model"
     run_full(args)
