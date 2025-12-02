@@ -2070,6 +2070,393 @@ def comprehensive_processor(
         assert "model_index" in state.features
 
 
+class TestExtractFeaturesTrainTestSplit:
+    """Test extract_features processor with train/test split functionality."""
+
+    @pytest.fixture
+    def train_test_data(self) -> pd.DataFrame:
+        """Sample data with a test column for train/test split."""
+        return pd.DataFrame(
+            {
+                "model": ["gpt-4", "gpt-4", "claude", "claude", "gpt-4", "claude"],
+                "task": ["math", "reading", "math", "reading", "math", "reading"],
+                "score": [0.8, 0.9, 0.7, 0.85, 0.75, 0.6],
+                "difficulty": [0.2, 0.4, 0.3, 0.5, 0.25, 0.45],
+                "is_test": [False, False, False, False, True, True],
+            }
+        )
+
+    def test_extract_features_with_test_split_continuous(
+        self, train_test_data: pd.DataFrame, mock_display: ModellingDisplay
+    ):
+        """Test that continuous features are split correctly into train and test."""
+        state = AnalysisState(data=train_test_data)
+
+        processor = extract_features(
+            continuous_features=["score", "difficulty"],
+            test="is_test",
+        )
+        result = processor(state, mock_display)
+
+        # Check train features
+        assert result.features is not None
+        assert "score" in result.features
+        assert "difficulty" in result.features
+        assert len(result.features["score"]) == 4  # 4 train rows
+        assert len(result.features["difficulty"]) == 4
+
+        # Check test features
+        assert result.test_features is not None
+        assert "score" in result.test_features
+        assert "difficulty" in result.test_features
+        assert len(result.test_features["score"]) == 2  # 2 test rows
+        assert len(result.test_features["difficulty"]) == 2
+
+        # Verify correct values
+        assert jnp.allclose(result.features["score"], jnp.array([0.8, 0.9, 0.7, 0.85]))
+        assert jnp.allclose(result.test_features["score"], jnp.array([0.75, 0.6]))
+
+    def test_extract_features_with_test_split_categorical(
+        self, train_test_data: pd.DataFrame, mock_display: ModellingDisplay
+    ):
+        """Test that categorical features are split correctly into train and test."""
+        state = AnalysisState(data=train_test_data)
+
+        processor = extract_features(
+            categorical_features=["model", "task"],
+            test="is_test",
+        )
+        result = processor(state, mock_display)
+
+        # Check train features
+        assert result.features is not None
+        assert "model_index" in result.features
+        assert "task_index" in result.features
+        assert "num_model" in result.features
+        assert "num_task" in result.features
+        assert len(result.features["model_index"]) == 4  # 4 train rows
+
+        # Check test features
+        assert result.test_features is not None
+        assert "model_index" in result.test_features
+        assert "task_index" in result.test_features
+        assert "num_model" in result.test_features
+        assert "num_task" in result.test_features
+        assert len(result.test_features["model_index"]) == 2  # 2 test rows
+
+        # num_model and num_task should be the same for train and test
+        assert result.features["num_model"] == result.test_features["num_model"]
+        assert result.features["num_task"] == result.test_features["num_task"]
+
+    def test_extract_features_with_test_split_mixed(
+        self, train_test_data: pd.DataFrame
+    ):
+        """Test train/test split with both continuous and categorical features."""
+        state = AnalysisState(data=train_test_data)
+
+        processor = extract_features(
+            categorical_features=["model"],
+            continuous_features=["score"],
+            test="is_test",
+        )
+        result = processor(state)
+
+        # Train features
+        assert len(result.features["score"]) == 4
+        assert len(result.features["model_index"]) == 4
+
+        # Test features
+        assert len(result.test_features["score"]) == 2
+        assert len(result.test_features["model_index"]) == 2
+
+    def test_extract_features_test_split_standardise_uses_train_stats(
+        self, train_test_data: pd.DataFrame
+    ):
+        """Test that standardisation uses only train data statistics."""
+        state = AnalysisState(data=train_test_data)
+
+        processor = extract_features(
+            continuous_features=["score"],
+            standardise=True,
+            test="is_test",
+        )
+        result = processor(state)
+
+        # Calculate expected values using train data statistics
+        train_scores = train_test_data[~train_test_data["is_test"]]["score"]
+        train_mean = float(train_scores.mean())
+        train_std = float(train_scores.std())
+
+        # Check train features are standardised with train stats
+        expected_train = (train_scores.values - train_mean) / (train_std + 1e-8)
+        assert jnp.allclose(result.features["score"], jnp.array(expected_train), atol=1e-5)
+
+        # Check test features are also standardised with TRAIN stats (not test stats)
+        test_scores = train_test_data[train_test_data["is_test"]]["score"]
+        expected_test = (test_scores.values - train_mean) / (train_std + 1e-8)
+        assert jnp.allclose(result.test_features["score"], jnp.array(expected_test), atol=1e-5)
+
+    def test_extract_features_test_split_preserves_category_order(self):
+        """Test that category ordering is consistent between train and test."""
+        data = pd.DataFrame(
+            {
+                "model": ["gpt-4", "claude", "gemini", "gpt-4", "claude"],
+                "score": [0.8, 0.7, 0.9, 0.75, 0.65],
+                "is_test": [False, False, False, True, True],
+            }
+        )
+        state = AnalysisState(data=data)
+
+        processor = extract_features(
+            categorical_features=["model"],
+            test="is_test",
+            reference_categories={"model": "gpt-4"},
+        )
+        result = processor(state)
+
+        # Category order should be: gpt-4=0, claude=1, gemini=2
+        assert result.coords["model"] == ["gpt-4", "claude", "gemini"]
+
+        # Train: gpt-4=0, claude=1, gemini=2
+        expected_train_indices = [0, 1, 2]
+        assert list(result.features["model_index"]) == expected_train_indices
+
+        # Test: gpt-4=0, claude=1
+        expected_test_indices = [0, 1]
+        assert list(result.test_features["model_index"]) == expected_test_indices
+
+    def test_extract_features_test_split_with_interactions(
+        self, train_test_data: pd.DataFrame
+    ):
+        """Test train/test split with continuous × categorical interactions."""
+        state = AnalysisState(data=train_test_data)
+
+        processor = extract_features(
+            categorical_features=["model"],
+            continuous_features=["score"],
+            interactions=True,
+            test="is_test",
+        )
+        result = processor(state)
+
+        # Check interaction features exist in both train and test
+        assert "model_score" in result.features
+        assert "score_model" in result.features
+        assert "model_score" in result.test_features
+        assert "score_model" in result.test_features
+
+        # Verify lengths
+        assert len(result.features["model_score"]) == 4
+        assert len(result.test_features["model_score"]) == 2
+
+    def test_extract_features_test_split_categorical_interactions(self):
+        """Test train/test split with categorical × categorical interactions."""
+        data = pd.DataFrame(
+            {
+                "model": ["gpt-4", "gpt-4", "claude", "claude", "gpt-4"],
+                "task": ["math", "reading", "math", "reading", "math"],
+                "score": [0.8, 0.9, 0.7, 0.85, 0.75],
+                "is_test": [False, False, False, False, True],
+            }
+        )
+        state = AnalysisState(data=data)
+
+        processor = extract_features(
+            categorical_features=["model", "task"],
+            interactions=True,
+            test="is_test",
+        )
+        result = processor(state)
+
+        # Check dims for interaction are set
+        assert "model_task_effects" in result.dims
+        assert result.dims["model_task_effects"] == ["model", "task"]
+
+        # Both train and test should have the indices
+        assert len(result.features["model_index"]) == 4
+        assert len(result.test_features["model_index"]) == 1
+
+    def test_extract_features_test_split_updates_existing_features(self):
+        """Test that test split updates existing features and test_features."""
+        data = pd.DataFrame(
+            {
+                "model": ["gpt-4", "claude", "gpt-4"],
+                "score": [0.8, 0.7, 0.75],
+                "is_test": [False, False, True],
+            }
+        )
+        state = AnalysisState(data=data)
+        state.features = {"existing": jnp.array([1, 2])}
+        state.test_features = {"existing_test": jnp.array([3])}
+
+        processor = extract_features(
+            continuous_features=["score"],
+            test="is_test",
+        )
+        result = processor(state)
+
+        # Should preserve existing features
+        assert "existing" in result.features
+        assert "score" in result.features
+
+        # Should update test_features
+        assert "existing_test" in result.test_features
+        assert "score" in result.test_features
+
+    def test_extract_features_test_split_no_test_column(
+        self, sample_analysis_state: AnalysisState
+    ):
+        """Test that specifying test column that doesn't exist is handled."""
+        processor = extract_features(
+            continuous_features=["score"],
+            test="nonexistent_column",
+        )
+        result = processor(sample_analysis_state)
+
+        # Should process all data as train (no split)
+        assert len(result.features["score"]) == 4
+        # test_features should be None or empty since no valid test column
+        assert result.test_features is None or len(result.test_features) == 0
+
+    def test_extract_features_test_split_all_train(self):
+        """Test when all data is marked as train (test column all False)."""
+        data = pd.DataFrame(
+            {
+                "model": ["gpt-4", "claude"],
+                "score": [0.8, 0.7],
+                "is_test": [False, False],
+            }
+        )
+        state = AnalysisState(data=data)
+
+        processor = extract_features(
+            continuous_features=["score"],
+            test="is_test",
+        )
+        result = processor(state)
+
+        assert len(result.features["score"]) == 2
+        # test_features exists but is empty
+        assert result.test_features is not None
+        assert len(result.test_features.get("score", [])) == 0
+
+    def test_extract_features_test_split_all_test(self):
+        """Test when all data is marked as test (test column all True)."""
+        data = pd.DataFrame(
+            {
+                "model": ["gpt-4", "claude"],
+                "score": [0.8, 0.7],
+                "is_test": [True, True],
+            }
+        )
+        state = AnalysisState(data=data)
+
+        processor = extract_features(
+            continuous_features=["score"],
+            test="is_test",
+        )
+        result = processor(state)
+
+        # Train features should be empty
+        assert len(result.features.get("score", [])) == 0
+        # Test features should have all data
+        assert len(result.test_features["score"]) == 2
+
+    def test_extract_features_test_split_logging(
+        self, train_test_data: pd.DataFrame, mock_display: ModellingDisplay
+    ):
+        """Test that train/test split is logged correctly."""
+        state = AnalysisState(data=train_test_data)
+
+        processor = extract_features(
+            continuous_features=["score"],
+            test="is_test",
+        )
+        processor(state, mock_display)
+
+        # Check that logging mentions train/test split
+        log_calls = [call[0][0] for call in mock_display.logger.info.call_args_list]
+        split_logs = [log for log in log_calls if "train/test split" in log.lower()]
+        assert len(split_logs) > 0
+        assert any("Train: 4" in log for log in split_logs)
+        assert any("Test: 2" in log for log in split_logs)
+
+    def test_extract_features_test_split_with_category_order(self):
+        """Test that category_order works correctly with train/test split."""
+        data = pd.DataFrame(
+            {
+                "model": ["gpt-4", "claude", "gemini", "gpt-4", "claude"],
+                "score": [0.8, 0.7, 0.9, 0.75, 0.65],
+                "is_test": [False, False, False, True, True],
+            }
+        )
+        state = AnalysisState(data=data)
+
+        # Specify custom category order
+        processor = extract_features(
+            categorical_features=["model"],
+            test="is_test",
+            category_order={"model": ["gemini", "gpt-4", "claude"]},
+        )
+        result = processor(state)
+
+        # Category order should match specified order
+        assert result.coords["model"] == ["gemini", "gpt-4", "claude"]
+
+        # Train indices: gpt-4=1, claude=2, gemini=0
+        expected_train_indices = [1, 2, 0]
+        assert list(result.features["model_index"]) == expected_train_indices
+
+        # Test indices: gpt-4=1, claude=2
+        expected_test_indices = [1, 2]
+        assert list(result.test_features["model_index"]) == expected_test_indices
+
+    def test_extract_features_test_split_with_effect_coding(
+        self, train_test_data: pd.DataFrame
+    ):
+        """Test that effect coding works correctly with train/test split."""
+        state = AnalysisState(data=train_test_data)
+
+        processor = extract_features(
+            categorical_features=["model"],
+            test="is_test",
+            effect_coding_for_main_effects=True,
+        )
+        result = processor(state)
+
+        # Check constrained coords are created
+        assert "model_constrained" in result.coords
+
+        # Train and test should both have model_index
+        assert "model_index" in result.features
+        assert "model_index" in result.test_features
+
+    def test_extract_features_test_split_dtype_preserved(self):
+        """Test that dtypes are correctly inferred for both train and test."""
+        data = pd.DataFrame(
+            {
+                "int_feature": [1, 2, 3, 4, 5],
+                "float_feature": [1.0, 2.0, 3.0, 4.0, 5.0],
+                "is_test": [False, False, False, True, True],
+            }
+        )
+        state = AnalysisState(data=data)
+
+        processor = extract_features(
+            continuous_features=["int_feature", "float_feature"],
+            test="is_test",
+        )
+        result = processor(state)
+
+        # Check train dtypes
+        assert result.features["int_feature"].dtype == jnp.int32
+        assert result.features["float_feature"].dtype == jnp.float32
+
+        # Check test dtypes match train
+        assert result.test_features["int_feature"].dtype == jnp.int32
+        assert result.test_features["float_feature"].dtype == jnp.float32
+
+
 class TestProcessConfigEdgeCases:
     """Test edge cases and limits of ProcessConfig functionality."""
 

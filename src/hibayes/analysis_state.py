@@ -47,6 +47,7 @@ class ModelAnalysisState:
         model_config: "ModelConfig",  # model configuration
         platform_config: Optional[PlatformConfig] = None,  # platform configuration
         features: Optional["Features"] = None,
+        test_features: Optional["Features"] = None,  # features for test data
         coords: Optional["Coords"] = None,
         dims: Optional["Dims"] = None,
         inference_data: Optional[
@@ -61,6 +62,7 @@ class ModelAnalysisState:
         self._model_config: "ModelConfig" = model_config
         self._platform_config: PlatformConfig = platform_config or PlatformConfig()
         self._features: "Features" = features or {}
+        self._test_features: "Features" = test_features or {}
         self._coords: "Coords" | None = coords
         self._dims: "Dims" | None = dims
 
@@ -190,6 +192,27 @@ class ModelAnalysisState:
         features["obs"] = None
         return features
 
+    @property
+    def test_features(self) -> "Features":
+        """Get the test features."""
+        return self._test_features
+
+    @test_features.setter
+    def test_features(self, test_features: "Features") -> None:
+        """Set the test features."""
+        self._test_features = test_features
+
+    @property
+    def prior_test_features(self) -> Dict[str, Optional[Any]]:
+        """Get the prior test features. Basically all bar observables."""
+        if not self._test_features:
+            return {}
+        features: Dict[str, Optional[Any]] = {
+            k: v for k, v in self._test_features.items() if "obs" not in k
+        }
+        features["obs"] = None
+        return features
+
     def save(self, path: Path) -> None:
         """
         save the model state
@@ -221,6 +244,9 @@ class ModelAnalysisState:
         if self.features:
             with (path / "features.pkl").open("wb") as fp:
                 pickle.dump(self.features, fp)
+        if self.test_features:
+            with (path / "test_features.pkl").open("wb") as fp:
+                pickle.dump(self.test_features, fp)
         if self.coords is not None:
             _dump_json(self.coords, path / "coords.json")
 
@@ -268,6 +294,10 @@ class ModelAnalysisState:
         if (path / "features.pkl").exists():
             with (path / "features.pkl").open("rb") as fp:
                 features: "Features" = pickle.load(fp)
+        test_features = None
+        if (path / "test_features.pkl").exists():
+            with (path / "test_features.pkl").open("rb") as fp:
+                test_features: "Features" = pickle.load(fp)
         coords = None
         if (path / "coords.json").exists():
             coords = _load_json(path / "coords.json")
@@ -298,6 +328,7 @@ class ModelAnalysisState:
             model_config=model_config,
             platform_config=platform_config,
             features=features,
+            test_features=test_features,
             coords=coords,
             dims=dims,
             inference_data=inference_data,
@@ -318,6 +349,9 @@ class AnalysisState:
         features: Optional[
             "Features"
         ] = None,  # extracted features and to be shared with the models
+        test_features: Optional[
+            "Features"
+        ] = None,  # features for test data if separate from training
         coords: Optional[
             "Coords"
         ] = None,  # map dimensinos to coordinates - used for nice plotting vars
@@ -336,6 +370,9 @@ class AnalysisState:
             processed_data  # processed data, e.g. grouping, filtering etc
         )
         self._features: "Features" = features if features is not None else {}
+        self._test_features: "Features" = (
+            test_features if test_features is not None else {}
+        )
         self._coords: "Coords" | None = coords
         self._dims: "Dims" | None = dims
         self._models: List[ModelAnalysisState] = models
@@ -390,6 +427,30 @@ class AnalysisState:
     def feature(self, feature_name: str) -> Any:
         """Get a specific feature."""
         return self._features.get(feature_name, None)
+
+    @property
+    def test_features(self) -> "Features":
+        """Get the test features."""
+        return self._test_features
+
+    @test_features.setter
+    def test_features(self, features: "Features") -> None:
+        """Set the test features."""
+        self._test_features = features
+
+    def test_feature(self, feature_name: str) -> Any:
+        """Get a specific test feature."""
+        return self._test_features.get(feature_name, None)
+
+    @property
+    def prior_test_features(self) -> Dict[str, Optional[Any]]:
+        """Get the prior test features. Bascally all bar observables."""
+        features: Dict[str, Optional[Any]] = {
+            k: v for k, v in self._test_features.items() if "obs" not in k
+        }
+        features["obs"] = None  # add obs as None for numpyro
+
+        return features
 
     @property
     def coords(self) -> "Coords" | None:
@@ -511,6 +572,8 @@ class AnalysisState:
         """Add a model to the analysis state."""
         if not model.features:
             model.features = self.features
+        if not model.test_features:
+            model.test_features = self.test_features
         if not model.coords:
             model.coords = self.coords
         if not model.dims:
@@ -592,6 +655,10 @@ class AnalysisState:
             with (path / "features.pkl").open("wb") as fp:
                 pickle.dump(self.features, fp)
 
+        if self.test_features:
+            with (path / "test_features.pkl").open("wb") as fp:
+                pickle.dump(self.test_features, fp)
+
         if self.coords is not None:
             _dump_json(self.coords, path / "coords.json")
 
@@ -650,9 +717,14 @@ class AnalysisState:
 
         # Features
         features = None
+        test_features = None
         if (path / "features.pkl").exists():
             with (path / "features.pkl").open("rb") as fp:
                 features: "Features" = pickle.load(fp)
+
+        if (path / "test_features.pkl").exists():
+            with (path / "test_features.pkl").open("rb") as fp:
+                test_features: "Features" = pickle.load(fp)
 
         if (path / "coords.json").exists():
             coords: "Coords" = _load_json(path / "coords.json")
@@ -675,11 +747,7 @@ class AnalysisState:
             for p in comm_path.iterdir():
                 stem, suffix = p.stem, p.suffix.lower()
                 if suffix == ".png":
-                    img = plt.imread(p)  # so that they can be matplotlib figures again.
-                    fig, ax = plt.subplots(figsize=(6, 4))
-                    ax.imshow(img)
-                    ax.axis("off")
-                    communicate[stem] = fig
+                    continue # skip loading figures to save memory
                 elif suffix == ".csv":
                     communicate[stem] = pd.read_csv(p)
                 else:
@@ -700,6 +768,7 @@ class AnalysisState:
             processed_data=processed_data,
             models=models,
             features=features,
+            test_features=test_features,
             coords=coords,
             dims=dims,
             communicate=communicate,

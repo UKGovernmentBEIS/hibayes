@@ -6,6 +6,7 @@ from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Set, 
 
 import numpy as np
 import yaml
+from numpyro.infer.initialization import init_to_mean, init_to_median, init_to_uniform
 
 from ..registry import RegistryInfo, _import_path, registry_get
 from ..utils import init_logger
@@ -45,6 +46,12 @@ LINK_FUNCTION_MAP: Dict[str, Callable[[np.ndarray], np.ndarray]] = {
     "cloglog": cloglog_to_prob,
 }
 
+INIT_FUNCTION_MAP: Dict[str, Callable[..., Any]] = {
+    "median": init_to_median,
+    "mean": init_to_mean,
+    "uniform": init_to_uniform,
+}
+
 
 @dataclass(frozen=True, slots=True)
 class FitConfig:
@@ -56,6 +63,7 @@ class FitConfig:
     progress_bar: bool = True
     target_accept: float = 0.95
     max_tree_depth: int = 10
+    init_strategy: str = "median"  # initialization strategy for NUTS, one of: median, mean, uniform
 
     def merged(self, **updates: Any) -> "FitConfig":
         """Return a *new* FitConfig with updates applied."""
@@ -110,7 +118,15 @@ class ModelConfig:
         extra_kwargs.update(config)
 
         # Process fit config
-        fit_config = FitConfig(**structured_args.get("fit", {}))
+        fit_dict = structured_args.get("fit", {}).copy()
+        if "init_strategy" in fit_dict:
+            init_strategy = fit_dict["init_strategy"]
+            if init_strategy not in INIT_FUNCTION_MAP:
+                raise ValueError(
+                    f"Init strategy '{init_strategy}' not recognised. "
+                    f"Must be one of {list(INIT_FUNCTION_MAP.keys())}."
+                )
+        fit_config = FitConfig(**fit_dict)
 
         # Process link function
         link_arg = structured_args.get("link_function", "logit")

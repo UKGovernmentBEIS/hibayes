@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any, Callable, Dict
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import jax.numpy as jnp
 import numpy as np
@@ -19,7 +19,7 @@ from hibayes.model import (
     model,
     two_level_group_binomial,
 )
-from hibayes.model.model_config import LINK_FUNCTION_MAP, FitConfig
+from hibayes.model.model_config import INIT_FUNCTION_MAP, LINK_FUNCTION_MAP, FitConfig
 from hibayes.model.models import check_features
 from hibayes.model.utils import (
     cloglog_to_prob,
@@ -417,6 +417,7 @@ class TestFitConfig:
         assert config.progress_bar is True
         assert config.target_accept == 0.95
         assert config.max_tree_depth == 10
+        assert config.init_strategy == "median"
 
     def test_fit_config_custom_values(self):
         """Test FitConfig with custom values."""
@@ -454,6 +455,40 @@ class TestFitConfig:
         assert updated.samples == 2000
         assert updated.chains == 2  # Unchanged
         assert updated.seed == 42
+
+    @pytest.mark.parametrize("init_strategy", ["median", "mean", "uniform"])
+    def test_fit_config_init_strategy_valid_values(self, init_strategy):
+        """Test FitConfig with all valid init_strategy values."""
+        config = FitConfig(init_strategy=init_strategy)
+        assert config.init_strategy == init_strategy
+        # Verify the strategy maps to a valid function
+        assert init_strategy in INIT_FUNCTION_MAP
+
+    def test_fit_config_init_strategy_from_dict(self):
+        """Test init_strategy is properly parsed from ModelConfig.from_dict."""
+        config = ModelConfig.from_dict({"fit": {"init_strategy": "uniform"}})
+        assert config.fit.init_strategy == "uniform"
+
+    def test_fit_config_init_strategy_invalid_raises_error(self):
+        """Test that invalid init_strategy raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            ModelConfig.from_dict({"fit": {"init_strategy": "invalid_strategy"}})
+
+        error_msg = str(exc_info.value)
+        assert "invalid_strategy" in error_msg
+        assert "median" in error_msg
+        assert "mean" in error_msg
+        assert "uniform" in error_msg
+
+    def test_fit_config_init_strategy_merged(self):
+        """Test FitConfig.merged preserves init_strategy."""
+        original = FitConfig(init_strategy="uniform")
+        updated = original.merged(samples=500)
+        assert updated.init_strategy == "uniform"
+
+        # And can update init_strategy
+        updated2 = original.merged(init_strategy="mean")
+        assert updated2.init_strategy == "mean"
 
 
 class TestModelsToRunConfig:
@@ -672,6 +707,7 @@ class TestFitFunction:
             model_state.model,
             target_accept_prob=0.95,
             max_tree_depth=10,
+            init_strategy=ANY,  # init_strategy is a callable
         )
 
         # Verify MCMC was configured correctly
@@ -1045,6 +1081,7 @@ class TestModelErrorHandling:
         # Create minimal invalid state
         model_state = MagicMock()
         model_state.model_config.fit.method = "INVALID_METHOD"
+        model_state.model_config.fit.init_strategy = "median"
 
         with pytest.raises(
             ValueError, match=r".*Unsupported inference method: INVALID_METHOD.*"
@@ -1786,6 +1823,7 @@ models:
                 model1,
                 target_accept_prob=0.85,  # From YAML config
                 max_tree_depth=10,  # Default
+                init_strategy=ANY,  # init_strategy is a callable
             )
 
             # Verify MCMC was configured with YAML parameters
