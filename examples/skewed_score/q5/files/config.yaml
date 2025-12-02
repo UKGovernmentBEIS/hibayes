@@ -1,3 +1,8 @@
+data_loader:
+  paths:
+    extracted_data:
+      - data/data.csv
+
 data_process:
   processors:
     - extract_observed_feature: {feature_name: first_is_chosen} # binary outcome

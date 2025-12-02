@@ -1,9 +1,20 @@
 stages:
-  process:
-    cmd: hibayes-process --config files/config.yaml --data data/data.csv --out .output/process/
+  load:
+    cmd: hibayes-load --config files/config.yaml --out .output/load/
     deps:
     - ../../../src/hibayes/
     - data/data.csv
+    outs:
+    - .output/load/
+    params:
+      - files/config.yaml:
+        - data_loader
+
+  process:
+    cmd: hibayes-process --config files/config.yaml --analysis-state .output/load/ --out .output/process/
+    deps:
+    - ../../../src/hibayes/
+    - .output/load/
     outs:
     - .output/process/
     params:
