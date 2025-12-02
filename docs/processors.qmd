@@ -2,3 +2,122 @@
 title: "Data Processors"
 description: "Transforming loaded data for Bayesian modelling"
 ---
+
+Processors in hibayes transform your loaded data into the format required by your statistical models. They extract features, create indices for categorical variables, and prepare coordinates for posterior analysis. There are a number of built-in processors you can select from.
+
+## What makes up a processor?
+
+Processors operate on the [AnalysisState](analysis-state.md) and transform the `processed_data` DataFrame into model-ready `features`, `coords`, and `dims`. They return the updated AnalysisState.
+
+```python
+from hibayes.process import DataProcessor, process
+
+from jax import numpy as jnp
+
+
+@process
+def my_processor(
+    feature_name: str = "score", # <1>
+) -> DataProcessor:
+    """
+    A processor which extracts a feature from the data.
+    """
+    def process(state, display): # <2>
+        if feature_name not in state.processed_data.columns:
+            raise ValueError(f"Column '{feature_name}' not found") # <3>
+
+        features = {
+            "obs": jnp.array(state.processed_data[feature_name].values)
+        }
+
+        if state.features: # <4>
+            state.features.update(features)
+        else:
+            state.features = features
+
+        if display: # <5>
+            display.logger.info(f"Extracted '{feature_name}' -> 'obs'")
+
+        return state
+    return process
+```
+1. Any arguments the user can configure through the config file.
+2. The inner function receives the `AnalysisState` and optional display for logging.
+3. Provide helpful error messages when required columns are missing.
+4. Update existing features rather than overwriting - processors can be chained.
+5. Use the display logger to provide feedback during processing.
+
+## Built-in processors
+
+### Feature extraction
+
+**`extract_observed_feature`** - Extract a single column as the observed outcome (`obs`). Use for simple cases where you just need the response variable.
+
+**`extract_features`** - The main processor for GLM-style models. Extracts:
+
+- Categorical features: factorised indices, counts, coords, and dims
+- Continuous features: raw arrays (optionally standardised)
+- Interactions: categorical × categorical dims, continuous × categorical slopes
+
+Supports effect coding, custom reference categories, and custom category ordering.
+
+### Data transformation
+
+**`map_columns`** - Rename columns in the data to match expected names (e.g., rename `"accuracy"` to `"score"`).
+
+**`groupby`** - Aggregate data by specified columns for binomial models. Creates `n_correct` and `n_total` columns from individual `score` observations.
+
+**`drop_rows_with_missing_features`** - Remove rows with missing values in specified columns.
+
+## Configuring processors
+
+Processors are configured in your `hibayes.yaml` under the `process` section:
+
+```yaml
+process:
+  processors:
+    - map_columns:
+        column_mapping:
+          accuracy: score
+          llm: model
+    - groupby:
+        groupby_columns: ["model", "task"]
+    - extract_observed_feature:
+        feature_name: n_correct
+    - extract_features:
+        categorical_features: ["model", "task"]
+        interactions: true
+```
+
+Or use the simpler list format for processors with default arguments:
+
+```yaml
+process:
+  processors:
+    - extract_observed_feature
+    - extract_features
+```
+
+## Custom processors
+
+To use a custom processor, create a Python file with your processor definition and reference it in your config:
+
+```yaml
+process:
+  path: path/to/my_processors.py
+  processors:
+    - my_processor:
+        feature_name: custom_score
+```
+
+The `@process` decorator registers your function so it can be accessed by name in the config.
+
+## Features, Coords, and Dims
+
+Processors populate three key structures on the AnalysisState:
+
+- **Features**: A dictionary of arrays passed to the NumPyro model (e.g., `{"obs": [...], "model_index": [...], "num_model": 3}`)
+- **Coords**: Named coordinates for ArviZ (e.g., `{"model": ["gpt-4", "claude", "gemini"]}`)
+- **Dims**: Dimension names for parameters (e.g., `{"model_effects": ["model"]}`)
+
+These enable meaningful posterior summaries with named indices rather than integer positions.

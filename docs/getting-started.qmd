@@ -68,13 +68,13 @@ uv run pre-commit run --all-files
 The quickest way to understand HiBayES is to run an example:
 
 ```bash
-cd examples/hibayes-usecases/usecase1
+cd examples/skewed_score/q1
 uv run dvc repro
 ```
 
 Or without DVC:
 ```bash
-cd examples/hibayes-usecases/usecase1
+cd examples/skewed_score/q1
 uv run hibayes-full --config files/config.yaml --out .output
 ```
 
