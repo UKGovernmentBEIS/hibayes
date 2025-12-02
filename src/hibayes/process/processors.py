@@ -8,7 +8,7 @@ import pandas as pd
 from jax import numpy as jnp
 
 from ._process import DataProcessor, process
-from .utils import infer_jax_dtype
+from .utils import get_category_order, infer_jax_dtype
 
 if TYPE_CHECKING:
     from ..analysis import AnalysisState
@@ -72,6 +72,8 @@ def extract_features(
     interactions: bool = False,
     effect_coding_for_main_effects: bool = False,
     standardise: bool = False,
+    reference_categories: dict[str, Any] | None = None,
+    category_order: dict[str, list[Any]] | None = None,
 ):
     """
     Extract inputs for GLMs:
@@ -80,9 +82,25 @@ def extract_features(
       - Interactions:
           * categorical × categorical: dims [c1, c2]
           * continuous × categorical: feature '{x}_{g}_effects'
+
+    Args:
+        categorical_features: List of categorical column names to extract.
+        continuous_features: List of continuous column names to extract.
+        interactions: Whether to extract pairwise interactions.
+        effect_coding_for_main_effects: Whether to create constrained coords for effect coding.
+        standardise: Whether to standardise continuous features.
+        reference_categories: Dict mapping categorical feature names to the category value
+            that should be treated as the reference (placed first in the ordering, so it
+            becomes the zero/baseline in dummy coding). If a feature is not in this dict,
+            the default alphabetical ordering is used.
+        category_order: Dict mapping categorical feature names to the full list of category
+            values in the desired order. The first category in the list becomes the reference.
+            Takes precedence over reference_categories if both are specified for a feature.
     """
     categorical_features = categorical_features or []
     continuous_features = continuous_features or []
+    reference_categories = reference_categories or {}
+    category_order = category_order or {}
 
     def process(
         state: AnalysisState,
@@ -126,7 +144,19 @@ def extract_features(
         # categorical
         for cat in categorical_features:
             series = state.processed_data[cat]
-            code, index = pd.factorize(series, sort=True)
+
+            # Determine category ordering
+            index = get_category_order(
+                series,
+                feature_name=cat,
+                reference_category=reference_categories.get(cat),
+                custom_order=category_order.get(cat),
+            )
+
+            # Create mapping from category to index
+            cat_to_idx = {cat_val: i for i, cat_val in enumerate(index)}
+            code = series.map(cat_to_idx).values
+
             features[f"{cat}_index"] = jnp.asarray(code, dtype=jnp.int32)
             features[f"num_{cat}"] = len(index)
             coords[cat] = index.tolist()
@@ -136,6 +166,7 @@ def extract_features(
                 coords[f"{cat}_constrained"] = index[:-1].tolist()
             if display:
                 display.logger.info(f"Extracted categorical '{cat}' -> '{cat}_index'")
+                display.logger.info(f"  - Category order: {index.tolist()} (reference: {index[0]})")
                 if effect_coding_for_main_effects and len(index) > 1:
                     display.logger.info(
                         f"  - Full effects: {len(index)}; Constrained: {len(index) - 1}"

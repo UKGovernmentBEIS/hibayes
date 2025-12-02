@@ -471,8 +471,8 @@ class TestExtractPredictors:
         assert result.dims["model_effects"] == ["model"]
         assert result.dims["task_effects"] == ["task"]
 
-        # Check logging
-        assert mock_display.logger.info.call_count == 2
+        # Check logging (2 categorical features × 2 log messages each: extraction + category order)
+        assert mock_display.logger.info.call_count == 4
 
     def test_extract_features_categorical_custom_names(
         self, sample_analysis_state: AnalysisState
@@ -682,6 +682,135 @@ class TestExtractPredictors:
 
         assert constrained_task_coords == full_task_coords[:-1]
         assert len(constrained_task_coords) == len(full_task_coords) - 1
+
+    def test_extract_features_reference_categories(self):
+        """Test that reference_categories puts specified category first (as reference)."""
+        data = pd.DataFrame(
+            {
+                "model": ["gpt-4", "claude", "gemini", "gpt-4"],
+                "score": [0.8, 0.7, 0.9, 0.6],
+            }
+        )
+        state = AnalysisState(data=data)
+
+        # Without reference_categories, alphabetical order: claude=0, gemini=1, gpt-4=2
+        processor = extract_features(categorical_features=["model"])
+        result = processor(state)
+        assert result.coords["model"] == ["claude", "gemini", "gpt-4"]
+
+        # With reference_categories, gpt-4 should be first (index 0)
+        processor = extract_features(
+            categorical_features=["model"],
+            reference_categories={"model": "gpt-4"},
+        )
+        result = processor(state)
+        assert result.coords["model"][0] == "gpt-4"
+        assert result.coords["model"] == ["gpt-4", "claude", "gemini"]
+
+        # Check indices are correct
+        # Row 0: gpt-4 -> 0, Row 1: claude -> 1, Row 2: gemini -> 2, Row 3: gpt-4 -> 0
+        expected_indices = [0, 1, 2, 0]
+        assert list(result.features["model_index"]) == expected_indices
+
+    def test_extract_features_reference_categories_invalid(self):
+        """Test that reference_categories raises error for invalid category."""
+        data = pd.DataFrame(
+            {
+                "model": ["gpt-4", "claude"],
+                "score": [0.8, 0.7],
+            }
+        )
+        state = AnalysisState(data=data)
+
+        processor = extract_features(
+            categorical_features=["model"],
+            reference_categories={"model": "nonexistent"},
+        )
+
+        with pytest.raises(ValueError, match="not found in data"):
+            processor(state)
+
+    def test_extract_features_category_order(self):
+        """Test that category_order specifies full ordering of categories."""
+        data = pd.DataFrame(
+            {
+                "model": ["gpt-4", "claude", "gemini", "gpt-4"],
+                "score": [0.8, 0.7, 0.9, 0.6],
+            }
+        )
+        state = AnalysisState(data=data)
+
+        # Specify custom order: gemini first (reference), then gpt-4, then claude
+        processor = extract_features(
+            categorical_features=["model"],
+            category_order={"model": ["gemini", "gpt-4", "claude"]},
+        )
+        result = processor(state)
+
+        assert result.coords["model"] == ["gemini", "gpt-4", "claude"]
+
+        # Check indices: gpt-4 -> 1, claude -> 2, gemini -> 0, gpt-4 -> 1
+        expected_indices = [1, 2, 0, 1]
+        assert list(result.features["model_index"]) == expected_indices
+
+    def test_extract_features_category_order_missing_category(self):
+        """Test that category_order raises error when categories are missing from order."""
+        data = pd.DataFrame(
+            {
+                "model": ["gpt-4", "claude", "gemini"],
+                "score": [0.8, 0.7, 0.9],
+            }
+        )
+        state = AnalysisState(data=data)
+
+        # Only specify two categories, but data has three
+        processor = extract_features(
+            categorical_features=["model"],
+            category_order={"model": ["gpt-4", "claude"]},  # missing gemini
+        )
+
+        with pytest.raises(ValueError, match="missing categories found in data"):
+            processor(state)
+
+    def test_extract_features_category_order_extra_categories(self):
+        """Test that category_order with extra categories (not in data) works fine."""
+        data = pd.DataFrame(
+            {
+                "model": ["gpt-4", "claude"],
+                "score": [0.8, 0.7],
+            }
+        )
+        state = AnalysisState(data=data)
+
+        # Specify more categories than in data - should filter to only those present
+        processor = extract_features(
+            categorical_features=["model"],
+            category_order={"model": ["gemini", "gpt-4", "claude", "llama"]},
+        )
+        result = processor(state)
+
+        # Only categories present in data should appear (in specified order)
+        assert result.coords["model"] == ["gpt-4", "claude"]
+
+    def test_extract_features_category_order_takes_precedence(self):
+        """Test that category_order takes precedence over reference_categories."""
+        data = pd.DataFrame(
+            {
+                "model": ["gpt-4", "claude", "gemini"],
+                "score": [0.8, 0.7, 0.9],
+            }
+        )
+        state = AnalysisState(data=data)
+
+        # Both are specified - category_order should win
+        processor = extract_features(
+            categorical_features=["model"],
+            reference_categories={"model": "claude"},  # Would put claude first
+            category_order={"model": ["gemini", "gpt-4", "claude"]},  # But this takes precedence
+        )
+        result = processor(state)
+
+        assert result.coords["model"] == ["gemini", "gpt-4", "claude"]
 
 
 class TestDropRowsWithMissingFeatures:
