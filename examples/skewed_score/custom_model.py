@@ -146,10 +146,17 @@ def hierarchical_ordered_logistic_model(
                     coefs = jnp.concatenate([free_coefs, jnp.array([last_coef])])
                     numpyro.deterministic(f"{effect}_effects", coefs)
                 else:
-                    # Standard dummy coding
-                    coefs = numpyro.sample(
-                        f"{effect}_effects", prior_main_effect.expand([n_levels])
+                    # Standard dummy coding (reference category is 0)
+                    coefs = jnp.concatenate(
+                        [
+                            jnp.array([0.0]),  # Reference category
+                            numpyro.sample(
+                                f"{effect}_effects_raw", 
+                                prior_main_effect.expand([n_levels - 1]),
+                            ),
+                        ]
                     )
+                    numpyro.deterministic(f"{effect}_effects", coefs)
 
                 eta += coefs[idx]
 
@@ -313,9 +320,16 @@ def pairwise_logistic_model(
                 coefs = jnp.concatenate([free, jnp.array([last])])
                 numpyro.deterministic(f"{effect}_effects", coefs)
             else:
-                coefs = numpyro.sample(
-                    f"{effect}_effects", prior_main.expand([n_levels])
+                # Standard dummy coding (reference category is 0)
+                coefs = jnp.concatenate(
+                    [
+                        jnp.array([0.0]),  # Reference category
+                        numpyro.sample(
+                            f"{effect}_effects_raw", prior_main.expand([n_levels - 1]),
+                        ),
+                    ]
                 )
+                numpyro.deterministic(f"{effect}_effects", coefs)
             eta = eta + coefs[idx]
 
         #  Interactions
