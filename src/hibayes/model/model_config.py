@@ -1,7 +1,8 @@
 import json
 from dataclasses import asdict, dataclass, field, replace
+from difflib import get_close_matches
 from pathlib import Path
-from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple
+from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Set, Tuple
 
 import numpy as np
 import yaml
@@ -12,6 +13,27 @@ from ._model import Model
 from .utils import cloglog_to_prob, link_to_key, logit_to_prob, probit_to_prob
 
 logger = init_logger()
+
+
+def _validate_config_keys(
+    config: Dict[str, Any], allowed_keys: Set[str], config_name: str
+) -> None:
+    """Validate that config only contains allowed keys, with suggestions for typos."""
+    unknown_keys = set(config.keys()) - allowed_keys
+    if unknown_keys:
+        suggestions = []
+        for key in unknown_keys:
+            matches = get_close_matches(key, allowed_keys, n=1, cutoff=0.6)
+            if matches:
+                suggestions.append(f"'{key}' (did you mean '{matches[0]}'?)")
+            else:
+                suggestions.append(f"'{key}'")
+
+        raise ValueError(
+            f"Unknown keys in {config_name}: {', '.join(suggestions)}. "
+            f"Allowed keys are: {sorted(allowed_keys)}"
+        )
+
 
 Method = Literal["NUTS", "HMC"]  # MCMC sampler type
 
@@ -160,6 +182,10 @@ class ModelsToRunConfig:
         """Load configuration from a dictionary."""
         if config is None:
             config = {}
+
+        # Validate config keys
+        allowed_keys = {"path", "models"}
+        _validate_config_keys(config, allowed_keys, "ModelsToRunConfig")
 
         enabled_models = []
 

@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, Literal
+from difflib import get_close_matches
+from typing import Any, Dict, Literal, Set
 
 import jax
 import numpyro
@@ -9,6 +10,26 @@ import yaml
 from ..utils import init_logger
 
 logger = init_logger()
+
+
+def _validate_config_keys(
+    config: Dict[str, Any], allowed_keys: Set[str], config_name: str
+) -> None:
+    """Validate that config only contains allowed keys, with suggestions for typos."""
+    unknown_keys = set(config.keys()) - allowed_keys
+    if unknown_keys:
+        suggestions = []
+        for key in unknown_keys:
+            matches = get_close_matches(key, allowed_keys, n=1, cutoff=0.6)
+            if matches:
+                suggestions.append(f"'{key}' (did you mean '{matches[0]}'?)")
+            else:
+                suggestions.append(f"'{key}'")
+
+        raise ValueError(
+            f"Unknown keys in {config_name}: {', '.join(suggestions)}. "
+            f"Allowed keys are: {sorted(allowed_keys)}"
+        )
 
 ChainMethod = Literal["parallel", "sequential", "vectorized"]
 
@@ -81,6 +102,11 @@ class PlatformConfig:
         """
         if config is None:
             return cls()
+
+        # Validate config keys
+        allowed_keys = {"device_type", "num_devices", "gpu_memory_fraction", "chain_method"}
+        _validate_config_keys(config, allowed_keys, "PlatformConfig")
+
         return cls(
             device_type=config.get("device_type", "cpu"),
             num_devices=config.get("num_devices", None),

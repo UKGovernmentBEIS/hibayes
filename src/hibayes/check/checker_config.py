@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
-from typing import ClassVar, List
+from difflib import get_close_matches
+from typing import Any, ClassVar, Dict, List, Set
 
 import yaml
 
@@ -8,6 +9,26 @@ from ..utils import init_logger
 from ._check import Checker
 
 logger = init_logger()
+
+
+def _validate_config_keys(
+    config: Dict[str, Any], allowed_keys: Set[str], config_name: str
+) -> None:
+    """Validate that config only contains allowed keys, with suggestions for typos."""
+    unknown_keys = set(config.keys()) - allowed_keys
+    if unknown_keys:
+        suggestions = []
+        for key in unknown_keys:
+            matches = get_close_matches(key, allowed_keys, n=1, cutoff=0.6)
+            if matches:
+                suggestions.append(f"'{key}' (did you mean '{matches[0]}'?)")
+            else:
+                suggestions.append(f"'{key}'")
+
+        raise ValueError(
+            f"Unknown keys in {config_name}: {', '.join(suggestions)}. "
+            f"Allowed keys are: {sorted(allowed_keys)}"
+        )
 
 
 @dataclass
@@ -51,6 +72,11 @@ class CheckerConfig:
         """Load configuration from a dictionary."""
         if config is None:
             config = {}
+
+        # Validate config keys
+        allowed_keys = {"path", "checkers"}
+        _validate_config_keys(config, allowed_keys, "CheckerConfig")
+
         enabled_checks = []
 
         # so custom checks are registered and can be treated as default
