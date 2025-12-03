@@ -548,8 +548,11 @@ def waic(scale: str = "log") -> Checker:
             waic_res = state.diagnostics["waic"]
         else:
             waic_res = az.waic(state.inference_data, scale=scale)
-            state.add_diagnostic("waic", waic_res)
-            state.add_diagnostic("elpd_waic", waic_res.elpd_waic)
+        
+        state.add_diagnostic("waic", waic_res)
+        state.add_diagnostic("elpd_waic", waic_res.elpd_waic)
+        state.add_diagnostic("se_elpd_waic", waic_res.se)
+        state.add_diagnostic("p_waic", waic_res.p_waic)
 
         if display:
             display.logger.info(
