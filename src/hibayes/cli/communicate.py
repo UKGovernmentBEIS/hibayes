@@ -22,6 +22,7 @@ def run_communicate(args):
         analysis_state=analysis_state,
         communicate_config=config.communicate,
         display=display,
+        out=out
     )
     analysis_state.save(path=out)
 

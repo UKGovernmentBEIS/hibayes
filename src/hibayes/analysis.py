@@ -317,6 +317,7 @@ def communicate(
     analysis_state: AnalysisState,
     communicate_config: CommunicateConfig,
     display: ModellingDisplay,
+    out: Path
 ):
     """Run communication on the model."""
 
@@ -338,6 +339,9 @@ def communicate(
             display.update_logs(
                 f"Communicators {registry_info(communicator).name} returned: {outcome}"
             )
+
+            # save after each communicator
+            analysis_state.save(path=out)
 
     if display.is_live:
         display.stop()
