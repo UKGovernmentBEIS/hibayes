@@ -226,7 +226,8 @@ def model(
     checker_config: CheckerConfig,
     platform_config: PlatformConfig,
     display: ModellingDisplay,
-):
+    out: Path
+) -> AnalysisState:
     display.setupt_for_modelling()
 
     if not display.is_live:
@@ -263,6 +264,9 @@ def model(
             )
 
             analysis_state.add_model(model_analysis_state)
+
+            # save model after each fit
+            analysis_state.save(path=out)
 
     if display.is_live:
         display.stop()

@@ -32,6 +32,7 @@ def run_model(args):
         checker_config=config.checkers,
         platform_config=config.platform,
         display=display,
+        out=out,
     )
     analysis_state.save(path=out)
 
