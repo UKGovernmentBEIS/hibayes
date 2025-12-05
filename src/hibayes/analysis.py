@@ -226,7 +226,9 @@ def model(
     checker_config: CheckerConfig,
     platform_config: PlatformConfig,
     display: ModellingDisplay,
-):
+    out: Path,
+    frequent_save: bool = False,
+) -> AnalysisState:
     display.setupt_for_modelling()
 
     if not display.is_live:
@@ -263,6 +265,10 @@ def model(
             )
 
             analysis_state.add_model(model_analysis_state)
+
+            if frequent_save:
+                # save model after each fit
+                analysis_state.save(path=out)
 
     if display.is_live:
         display.stop()
@@ -313,6 +319,8 @@ def communicate(
     analysis_state: AnalysisState,
     communicate_config: CommunicateConfig,
     display: ModellingDisplay,
+    out: Path,
+    frequent_save: bool = False
 ):
     """Run communication on the model."""
 
@@ -322,7 +330,7 @@ def communicate(
     display.update_header("Running communication methods")
 
     display.update_logs(
-        f"Enabled commincators: {[registry_info(check).name for check in communicate_config.enabled_communicators]}"
+        f"Enabled communicators: {[registry_info(check).name for check in communicate_config.enabled_communicators]}"
     )
 
     with display.capture_logs():
@@ -334,6 +342,10 @@ def communicate(
             display.update_logs(
                 f"Communicators {registry_info(communicator).name} returned: {outcome}"
             )
+
+            if frequent_save:
+                # save after each communicator
+                analysis_state.save(path=out)
 
     if display.is_live:
         display.stop()
