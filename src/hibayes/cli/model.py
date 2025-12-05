@@ -33,6 +33,7 @@ def run_model(args):
         platform_config=config.platform,
         display=display,
         out=out,
+        frequent_save=args.frequent_save
     )
     analysis_state.save(path=out)
 
@@ -54,6 +55,14 @@ def main():
     )
     parser.add_argument(
         "--out", required=True, help="dir path to write the DVC tracking files"
+    )
+
+    parser.add_argument(
+        "-fs",
+        "--frequent-save",
+        dest="frequent_save",
+        action="store_true",
+        help="If set, enables saving after each model fit."
     )
 
     args = parser.parse_args()
