@@ -330,7 +330,7 @@ def communicate(
     display.update_header("Running communication methods")
 
     display.update_logs(
-        f"Enabled commincators: {[registry_info(check).name for check in communicate_config.enabled_communicators]}"
+        f"Enabled communicators: {[registry_info(check).name for check in communicate_config.enabled_communicators]}"
     )
 
     with display.capture_logs():
