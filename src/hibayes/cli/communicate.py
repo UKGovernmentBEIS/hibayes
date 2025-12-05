@@ -54,7 +54,7 @@ def main():
         "--frequent-save",
         dest="frequent_save",
         action="store_true",
-        help="If set, enables saving after each model fit."
+        help="If set, enables saving after each communicator run."
     )
 
     args = parser.parse_args()
