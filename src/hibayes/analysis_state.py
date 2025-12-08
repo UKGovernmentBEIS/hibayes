@@ -358,8 +358,8 @@ class AnalysisState:
         dims: Optional[
             "Dims"
         ] = None,  # variable names to coordinates - used for nice plotting vars
-        models: List[ModelAnalysisState] = [],
-        communicate: Dict[str, plt.Figure | pd.DataFrame] = {},
+        models: Optional[List[ModelAnalysisState]] = None,
+        communicate: Optional[Dict[str, plt.Figure | pd.DataFrame]] = None,
         logs: Optional[Dict[str, List[str]]] = None,  # logs keyed by stage name
         display_stats: Optional[Dict[str, Any]] = None,  # persistent display statistics
     ) -> None:
@@ -375,10 +375,10 @@ class AnalysisState:
         )
         self._coords: "Coords" | None = coords
         self._dims: "Dims" | None = dims
-        self._models: List[ModelAnalysisState] = models
-        self._communicate: Dict[str, plt.Figure | pd.DataFrame] | None = (
-            communicate  # plots of findings
-        )
+        self._models: List[ModelAnalysisState] = models if models is not None else []
+        self._communicate: Dict[
+            str, plt.Figure | pd.DataFrame
+        ] | None = communicate  # plots of findings
         self._logs: Dict[str, List[str]] = logs if logs is not None else {}
         self._display_stats: Dict[str, Any] = (
             display_stats if display_stats is not None else {}
@@ -747,7 +747,7 @@ class AnalysisState:
             for p in comm_path.iterdir():
                 stem, suffix = p.stem, p.suffix.lower()
                 if suffix == ".png":
-                    continue # skip loading figures to save memory
+                    continue  # skip loading figures to save memory
                 elif suffix == ".csv":
                     communicate[stem] = pd.read_csv(p)
                 else:
