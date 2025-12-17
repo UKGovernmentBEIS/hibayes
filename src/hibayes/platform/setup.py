@@ -24,6 +24,13 @@ def _configure_gpu_memory(
         display.update_logs(
             f"Configured GPU to use {platform_config.gpu_memory_fraction * 100:.1f}% of available memory"
         )
+
+        #  Optionally set memory allocation on demand
+        if platform_config.mem_on_demand:
+            os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
+            display.update_logs(
+                "Set GPU to allocate memory on demand"
+            )
     except Exception as e:
         display.update_logs(f"Warning: Failed to configure GPU memory: {str(e)}")
 

@@ -22,6 +22,8 @@ def run_communicate(args):
         analysis_state=analysis_state,
         communicate_config=config.communicate,
         display=display,
+        out=out,
+        frequent_save=args.frequent_save
     )
     analysis_state.save(path=out)
 
@@ -45,6 +47,14 @@ def main():
         "--out",
         required=True,
         help="dir path to write the DVC tracking files (plots and tables)",
+    )
+
+    parser.add_argument(
+        "-fs",
+        "--frequent-save",
+        dest="frequent_save",
+        action="store_true",
+        help="If set, enables saving after each communicator run."
     )
 
     args = parser.parse_args()

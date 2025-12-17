@@ -269,6 +269,21 @@ class ModelAnalysisState:
                         bbox_inches="tight",
                     )
                     plt.close(obj)
+            
+            # if summary is in diagnostics, save as .nc
+            if "summary" in self.diagnostics:
+                target = path / "inference_data_summary.nc"
+
+                # az.summary() should return either pd.DataFrame or xarray.Dataset
+                if isinstance(self.diagnostics["summary"], pd.DataFrame):
+                    self.diagnostics["summary"].to_csv(target)
+
+                else:
+                    tmp = target.with_suffix(
+                        ".tmp.nc"
+                    )  # arviz lazily load the inf data so it remains open. This seems to be the best approach to saving the file
+                    self.diagnostics["summary"].to_netcdf(tmp)
+                    tmp.replace(target)
 
         if self.inference_data is not None:
             target = path / "inference_data.nc"
