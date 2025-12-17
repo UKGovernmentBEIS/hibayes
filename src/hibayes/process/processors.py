@@ -598,15 +598,12 @@ def merge_scout_results(
     - prefix: Prefix for ALL merged columns from Scout (default: scanner_name)
     
     Example:
-        ```python
-        - merge_scout_results:
-            scout_scan_path: "scans/scan_id=abc123"
-            scanner_name: "belief_asymmetry"
-            join_on_left: "question_id"
-            join_on_right: "id"
-            prefix: "scout_belief"
-        ```
-        This creates columns: scout_belief_value, scout_belief_explanation, scout_belief_scan_model_usage
+    - merge_scout_results:
+        scout_scan_path: "scans/scan_id=abc123"
+        scanner_name: "is_looping"
+        join_on_left: "id"
+        join_on_right: "transcript_id"
+        prefix: "from_scout_loop"
     """
     def processor(state: AnalysisState, display: ModellingDisplay | None = None) -> AnalysisState:
         if not HAS_SCOUT:
