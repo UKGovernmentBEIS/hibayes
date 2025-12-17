@@ -10,6 +10,7 @@ from .processors import (
     extract_observed_feature,
     extract_predictors_deprecated,
     groupby,
+    merge_scout_results,
     map_columns,
 )
 
@@ -21,6 +22,7 @@ __all__ = [
     "drop_rows_with_missing_features",
     "map_columns",
     "groupby",
+    "merge_scout_results",
     "DataProcessor",
     "process",
     "ProcessConfig",
