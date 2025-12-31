@@ -401,6 +401,9 @@ def loo(reff_threshold: float = 0.7):
     High Pareto k values indicate observations that are difficult to predict and
     where the importance sampling approximation may be unreliable.
 
+    Based on Vehtari, Gelman & Gabry (2017):
+    https://arxiv.org/abs/1507.04544
+
     Args:
         reff_threshold: Maximum acceptable Pareto k value. Default is 0.7.
 
@@ -629,6 +632,9 @@ def waic(scale: str = "log") -> Checker:
     WAIC estimates out-of-sample predictive accuracy using the log pointwise
     predictive density. It provides similar information to LOO-PSIS but uses
     a different approximation method.
+
+    Based on Vehtari, Gelman & Gabry (2017):
+    https://arxiv.org/abs/1507.04544
 
     Args:
         scale: Output scale for WAIC; one of "deviance" or "log" (default).
