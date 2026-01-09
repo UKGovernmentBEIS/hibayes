@@ -255,6 +255,25 @@ def prior_predictive_plot(
 
 @checker
 def r_hat(threshold: float = 1.01):
+    """
+    Check the R-hat convergence diagnostic for all parameters.
+
+    Category: MCMC convergence
+
+    R-hat (potential scale reduction factor) measures convergence by comparing
+    between-chain and within-chain variance. Values close to 1.0 indicate
+    convergence; values above the threshold suggest the chains have not converged.
+
+    Computed using the rank-normalized split R-hat from Vehtari et al. (2021):
+    https://arxiv.org/abs/1903.08008
+
+    Args:
+        threshold: Maximum acceptable R-hat value. Default is 1.01.
+
+    Returns:
+        Checker function that passes if all R-hat values are below threshold.
+    """
+
     def check(state: ModelAnalysisState, display: ModellingDisplay = None):
         if "summary" not in state.diagnostics:
             state.diagnostics["summary"] = az.summary(state.inference_data)
@@ -273,6 +292,25 @@ def r_hat(threshold: float = 1.01):
 
 @checker
 def ess_bulk(threshold: float = 1_000):
+    """
+    Check the bulk effective sample size (ESS) for all parameters.
+
+    Category: MCMC convergence
+
+    Bulk ESS estimates the effective number of independent samples for
+    estimating the mean of the distribution. Low values indicate high
+    autocorrelation and unreliable posterior estimates.
+
+    Computed using the rank-normalized ESS from Vehtari et al. (2021):
+    https://arxiv.org/abs/1903.08008
+
+    Args:
+        threshold: Minimum acceptable bulk ESS. Default is 1000.
+
+    Returns:
+        Checker function that passes if all bulk ESS values exceed threshold.
+    """
+
     def check(state: ModelAnalysisState, display: ModellingDisplay = None):
         if "summary" not in state.diagnostics:
             state.diagnostics["summary"] = az.summary(state.inference_data)
@@ -291,6 +329,25 @@ def ess_bulk(threshold: float = 1_000):
 
 @checker
 def ess_tail(threshold: float = 1_000):
+    """
+    Check the tail effective sample size (ESS) for all parameters.
+
+    Category: MCMC convergence
+
+    Tail ESS estimates the effective number of independent samples for
+    estimating tail quantiles (e.g., 5th and 95th percentiles). Low values
+    indicate unreliable credible interval estimates.
+
+    Computed using the rank-normalized ESS from Vehtari et al. (2021):
+    https://arxiv.org/abs/1903.08008
+
+    Args:
+        threshold: Minimum acceptable tail ESS. Default is 1000.
+
+    Returns:
+        Checker function that passes if all tail ESS values exceed threshold.
+    """
+
     def check(state: ModelAnalysisState, display: ModellingDisplay = None):
         if "summary" not in state.diagnostics:
             state.diagnostics["summary"] = az.summary(state.inference_data)
@@ -310,10 +367,19 @@ def ess_tail(threshold: float = 1_000):
 @checker
 def divergences(threshold: int = 0):
     """
-    Check the number of divergences in the model.
+    Check the number of divergent transitions in the model.
+
+    Category: Hamiltonian Monte Carlo convergence
+
+    Divergent transitions indicate the sampler encountered regions where the
+    Hamiltonian dynamics broke down, often due to high curvature in the posterior.
+    Any divergences suggest potential bias in the posterior estimates.
 
     Args:
-        threshold: Divergence threshold for convergence
+        threshold: Maximum acceptable number of divergences. Default is 0.
+
+    Returns:
+        Checker function that passes if divergence count is at or below threshold.
     """
 
     def check(state: ModelAnalysisState, display: ModellingDisplay = None):
@@ -335,9 +401,22 @@ def loo(
     scale: str = "log"
 ) -> Checker:
     """
-    Pareto-smoothed importance sampling LOO:
-    - computes az.loo(...)
-    - flags any high Pareto k > `reff_threshold` as failures
+    Compute Leave-One-Out cross-validation using Pareto-Smoothed Importance Sampling.
+
+    Category: Model comparison
+
+    LOO-PSIS estimates out-of-sample predictive accuracy without refitting the model.
+    High Pareto k values indicate observations that are difficult to predict and
+    where the importance sampling approximation may be unreliable.
+
+    Based on Vehtari, Gelman & Gabry (2017):
+    https://arxiv.org/abs/1507.04544
+
+    Args:
+        reff_threshold: Maximum acceptable Pareto k value. Default is 0.7.
+
+    Returns:
+        Checker function that passes if all Pareto k values are below threshold.
     """
 
     def check(state: ModelAnalysisState, display: ModellingDisplay = None) -> Tuple[ModelAnalysisState, CheckerResult]:
@@ -364,6 +443,25 @@ def loo(
 
 @checker
 def bfmi(threshold: float = 0.20):
+    """
+    Check the Bayesian Fraction of Missing Information (BFMI) for each chain.
+
+    Category: Hamiltonian Monte Carlo convergence
+
+    BFMI measures how well the sampler explores the energy distribution.
+    Low BFMI values suggest the sampler may be having difficulty exploring
+    the posterior, often due to problematic geometry.
+
+    Based on Betancourt (2016):
+    https://arxiv.org/abs/1604.00695
+
+    Args:
+        threshold: Minimum acceptable BFMI value. Default is 0.20.
+
+    Returns:
+        Checker function that passes if all chains have BFMI above threshold.
+    """
+
     def check(state: ModelAnalysisState, display: ModellingDisplay = None):
         if "potential_energy" not in state.inference_data.sample_stats:
             if display:
@@ -541,8 +639,18 @@ def waic(scale: str = "log") -> Checker:
     """
     Compute the Widely Applicable Information Criterion (WAIC).
 
+    Category: Model comparison
+
+    WAIC estimates out-of-sample predictive accuracy using the log pointwise
+    predictive density. It provides similar information to LOO-PSIS but uses
+    a different approximation method.
+
+    Based on Vehtari, Gelman & Gabry (2017):
+    https://arxiv.org/abs/1507.04544
+
     Args:
         scale: Output scale for WAIC; one of "deviance" or "log" (default).
+
     Returns:
         Checker function that computes WAIC and records it for inspection.
     """
