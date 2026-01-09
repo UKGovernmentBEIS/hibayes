@@ -49,6 +49,9 @@ def summary_table(
 
             if vars is None:
                 vars = model_analysis.model_config.get_plot_params()
+                if vars is None:
+                    # Get all variables from the inference data (like trace_plot does)
+                    vars = list(model_analysis.inference_data.posterior.data_vars)
 
             summary_df = model_analysis.get_summary(
                 var_names=vars,
