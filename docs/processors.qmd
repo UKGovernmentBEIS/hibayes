@@ -141,3 +141,13 @@ Processors populate three key structures on the AnalysisState:
 - **Dims**: Dimension names for parameters (e.g., `{"model_effects": ["model"]}`)
 
 These enable meaningful posterior summaries with named indices rather than integer positions.
+
+## Built-in Processors Reference
+
+| Processor | Purpose | Key Parameters |
+|-----------|---------|----------------|
+| `extract_observed_feature` | Extract a single column as observed outcome (`obs`) | `feature_name`, `test` (optional split column) |
+| `extract_features` | Full GLM feature extraction with categorical/continuous support | `categorical_features`, `continuous_features`, `interactions`, `effect_coding`, `standardise`, `test` |
+| `map_columns` | Rename columns to match expected names | `column_mapping` (dict) |
+| `groupby` | Aggregate data for binomial models | `groupby_columns` (creates `n_correct`, `n_total`) |
+| `drop_rows_with_missing_features` | Remove rows with missing values | `features` (list of columns to check) |

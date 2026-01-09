@@ -88,3 +88,15 @@ data_loader:
 ```
 1. calling the base extractor (this does not need the paths arg)
 2. here we call our custom extractor and pass the required arg.
+
+## Built-in Extractors Reference
+
+| Extractor | Description | Parameters |
+|-----------|-------------|------------|
+| `base_extractor` | Extracts core fields: score, target, model name, dataset, task ID, epoch, message count, log path. Default extractor. | None |
+| `token_extractor` | Extracts token usage: total, input, output, cache write, cache read tokens. | None |
+| `message_count_extractor` | Counts messages by role (system, user, assistant) in sample conversations. | `include_system=True`, `include_user=True`, `include_assistant=True` |
+| `tools_extractor` | Extracts list of tools used from evaluation plan steps. | None |
+| `cyber_extractor` | Extracts cybersecurity challenge metadata: category, split, description, source, domain capabilities. | None |
+| `metadata_field_extractor` | Generic extractor for specific nested metadata fields using dot-notation paths. | `field_path`, `default_value=None`, `rename_to=None` |
+| `score_normalizer` | Normalizes scores with custom mappings. Handles "I"/"C" to 0/1 conversion. | `score_field="score"`, `normalize_to_01=True`, `custom_mapping=None` |
