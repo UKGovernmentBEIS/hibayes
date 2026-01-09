@@ -260,6 +260,8 @@ def r_hat(threshold: float = 1.01):
             state.diagnostics["summary"] = az.summary(state.inference_data)
 
         da = state.diagnostics["summary"].r_hat.values
+        state.add_diagnostic("r_hat", da)
+
         if np.all(da < threshold):
             return state, "pass"
         if display:
@@ -276,6 +278,7 @@ def ess_bulk(threshold: float = 1_000):
             state.diagnostics["summary"] = az.summary(state.inference_data)
 
         da = state.diagnostics["summary"].ess_bulk.values
+        state.add_diagnostic("ess_bulk", da)
 
         if np.all(da > threshold):
             return state, "pass"
@@ -293,6 +296,8 @@ def ess_tail(threshold: float = 1_000):
             state.diagnostics["summary"] = az.summary(state.inference_data)
 
         da = state.diagnostics["summary"].ess_tail.values
+        state.add_diagnostic("ess_tail", da)
+
         if np.all(da > threshold):
             return state, "pass"
         if display:
@@ -325,20 +330,27 @@ def divergences(threshold: int = 0):
 
 
 @checker
-def loo(reff_threshold: float = 0.7):
+def loo(
+    reff_threshold: float = 0.7,
+    scale: str = "log"
+) -> Checker:
     """
     Pareto-smoothed importance sampling LOO:
     - computes az.loo(...)
     - flags any high Pareto k > `reff_threshold` as failures
     """
 
-    def check(state: ModelAnalysisState, display: ModellingDisplay = None):
+    def check(state: ModelAnalysisState, display: ModellingDisplay = None) -> Tuple[ModelAnalysisState, CheckerResult]:
         if "loo" in state.diagnostics:
             loo_res = state.diagnostics["loo"]
         else:
-            loo_res = az.loo(state.inference_data, pointwise=True)
+            loo_res = az.loo(state.inference_data, pointwise=True, scale=scale)
 
         state.add_diagnostic("loo", loo_res)
+        state.add_diagnostic("elpd_loo", loo_res.elpd_loo)
+        state.add_diagnostic("se_elpd_loo", loo_res.se)
+        state.add_diagnostic("p_loo", loo_res.p_loo)
+
         bad = int((loo_res.pareto_k.values > reff_threshold).sum())
         if bad == 0:
             return state, "pass"
@@ -541,8 +553,11 @@ def waic(scale: str = "log") -> Checker:
             waic_res = state.diagnostics["waic"]
         else:
             waic_res = az.waic(state.inference_data, scale=scale)
-            state.add_diagnostic("waic", waic_res)
-            state.add_diagnostic("elpd_waic", waic_res.elpd_waic)
+        
+        state.add_diagnostic("waic", waic_res)
+        state.add_diagnostic("elpd_waic", waic_res.elpd_waic)
+        state.add_diagnostic("se_elpd_waic", waic_res.se)
+        state.add_diagnostic("p_waic", waic_res.p_waic)
 
         if display:
             display.logger.info(

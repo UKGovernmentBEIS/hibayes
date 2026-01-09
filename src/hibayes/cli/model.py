@@ -32,8 +32,12 @@ def run_model(args):
         checker_config=config.checkers,
         platform_config=config.platform,
         display=display,
+        out=out,
+        frequent_save=args.frequent_save
     )
-    analysis_state.save(path=out)
+    # Final save - use incremental if files already exist (from frequent saves or previous run)
+    incremental = (out / "data.parquet").exists()
+    analysis_state.save(path=out, incremental=incremental)
 
 
 def main():
@@ -54,6 +58,14 @@ def main():
     parser.add_argument(
         "--out", required=True, help="dir path to write the DVC tracking files"
     )
+
+    parser.add_argument(
+        "--no-frequent-save",
+        dest="frequent_save",
+        action="store_false",
+        help="If set, disables saving after each model fit. By default, frequent saves are enabled."
+    )
+    parser.set_defaults(frequent_save=True)
 
     args = parser.parse_args()
 
