@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import List, Optional, Tuple
 
-import arviz as az
 import pandas as pd
 from rich import box
 from rich.table import Table
@@ -19,9 +18,12 @@ def summary_table(
     *,
     best_model: bool = True,
     round_to: int = 2,
-    **kwargs,
 ):
-    """Create an ArviZ summary table for the selected model(s)."""
+    """Create an ArviZ summary table for the selected model(s).
+
+    Uses a cached summary computed by model checkers when available,
+    avoiding redundant expensive az.summary() calls.
+    """
 
     def communicate(
         state: AnalysisState,
@@ -48,11 +50,9 @@ def summary_table(
             if vars is None:
                 vars = model_analysis.model_config.get_plot_params()
 
-            summary_df = az.summary(
-                model_analysis.inference_data,
+            summary_df = model_analysis.get_summary(
                 var_names=vars,
                 round_to=round_to,
-                **kwargs,
             )
 
             state.add_table(

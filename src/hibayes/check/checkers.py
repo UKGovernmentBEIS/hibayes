@@ -275,10 +275,8 @@ def r_hat(threshold: float = 1.01):
     """
 
     def check(state: ModelAnalysisState, display: ModellingDisplay = None):
-        if "summary" not in state.diagnostics:
-            state.diagnostics["summary"] = az.summary(state.inference_data)
-
-        da = state.diagnostics["summary"].r_hat.values
+        summary = state.get_summary()
+        da = summary.r_hat.values
         state.add_diagnostic("r_hat", da)
 
         if np.all(da < threshold):
@@ -312,10 +310,8 @@ def ess_bulk(threshold: float = 1_000):
     """
 
     def check(state: ModelAnalysisState, display: ModellingDisplay = None):
-        if "summary" not in state.diagnostics:
-            state.diagnostics["summary"] = az.summary(state.inference_data)
-
-        da = state.diagnostics["summary"].ess_bulk.values
+        summary = state.get_summary()
+        da = summary.ess_bulk.values
         state.add_diagnostic("ess_bulk", da)
 
         if np.all(da > threshold):
@@ -349,10 +345,8 @@ def ess_tail(threshold: float = 1_000):
     """
 
     def check(state: ModelAnalysisState, display: ModellingDisplay = None):
-        if "summary" not in state.diagnostics:
-            state.diagnostics["summary"] = az.summary(state.inference_data)
-
-        da = state.diagnostics["summary"].ess_tail.values
+        summary = state.get_summary()
+        da = summary.ess_tail.values
         state.add_diagnostic("ess_tail", da)
 
         if np.all(da > threshold):

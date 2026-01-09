@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from arviz import InferenceData
 
+import arviz as az
+
 from .model import Model, ModelConfig
 from .platform import PlatformConfig
 from .utils import init_logger
@@ -139,6 +141,47 @@ class ModelAnalysisState:
     def diagnostic(self, var: str) -> Any:
         """Get a specific result."""
         return self._diagnostics.get(var, None)
+
+    def get_summary(self, **kwargs) -> pd.DataFrame:
+        """
+        Get or compute the ArviZ summary for this model's inference data.
+
+        This method caches the full summary in diagnostics["summary"] to avoid
+        redundant expensive computations. Both checkers and communicators should
+        use this method instead of calling az.summary() directly.
+
+        Args:
+            **kwargs: Additional keyword arguments passed to az.summary() when
+                computing the summary (e.g., var_names, round_to). Note that the
+                cached summary is computed without these kwargs; they are applied
+                to filter/format the returned result.
+
+        Returns:
+            pd.DataFrame: The ArviZ summary, optionally filtered by var_names.
+        """
+        # Compute and cache full summary if not already present
+        if "summary" not in self._diagnostics or self._diagnostics["summary"] is None:
+            self._diagnostics["summary"] = az.summary(self.inference_data)
+
+        summary = self._diagnostics["summary"]
+
+        # If var_names specified, filter the cached summary
+        var_names = kwargs.get("var_names")
+        if var_names is not None and isinstance(summary, pd.DataFrame):
+            # Filter rows that match any of the var_names patterns
+            matching_rows = []
+            for var in var_names:
+                matching_rows.extend(
+                    [idx for idx in summary.index if idx.startswith(var)]
+                )
+            summary = summary.loc[summary.index.isin(matching_rows)]
+
+        # Apply rounding if specified
+        round_to = kwargs.get("round_to")
+        if round_to is not None and isinstance(summary, pd.DataFrame):
+            summary = summary.round(round_to)
+
+        return summary
 
     @property
     def is_fitted(self) -> bool:
