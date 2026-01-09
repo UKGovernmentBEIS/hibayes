@@ -89,6 +89,45 @@ analysis_state.save(path=out)  # <3>
 
 Each `save()` call overwrites the previous state, building up the complete analysis incrementally.
 
+#### Frequent saves (default)
+
+By default, the CLI saves state after each model fit and each communicator run. This provides:
+
+- **Crash recovery**: If a long-running analysis fails mid-way, you won't lose completed work
+- **Progress monitoring**: Inspect partial results while the analysis is still running
+- **Debugging**: Identify exactly which step caused a failure
+
+To disable frequent saves (save only at stage boundaries):
+
+```bash
+hibayes-full --config config.yaml --out ./results --no-frequent-save
+hibayes-model --config config.yaml --analysis-state ./input --out ./results --no-frequent-save
+hibayes-communicate --config config.yaml --analysis-state ./input --out ./results --no-frequent-save
+```
+
+#### Incremental saves
+
+When frequent saves are enabled, hibayes uses **incremental saving** to avoid repeatedly writing large, unchanged files. After the initial save, subsequent saves skip:
+
+- `data.parquet` and `processed_data.parquet` (data doesn't change after processing)
+- `features.pkl`, `coords.json`, `dims.json` (static after extraction)
+- `model.pkl` for each model (model function doesn't change)
+- `inference_data.nc` if the posterior samples haven't changed
+
+Files that may change are always saved:
+
+- `diagnostics.json` (checkers add new diagnostics)
+- Diagnostic figures and summary files
+- `inference_data.nc` when new groups are added (e.g., posterior predictive samples)
+
+This typically provides **10x or greater speedup** for frequent saves compared to full saves, making crash recovery essentially free in terms of performance overhead.
+
+```python
+# Programmatic usage
+state.save(path, incremental=False)  # Full save (default)
+state.save(path, incremental=True)   # Skip unchanged files
+```
+
 #### Folder layout
 
 ```
