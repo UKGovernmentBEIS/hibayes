@@ -42,7 +42,8 @@ def run_full(args):
         out=out,
         frequent_save=args.frequent_save,
     )
-    analysis_state.save(path=out)
+    # Save after model - incremental since files already exist
+    analysis_state.save(path=out, incremental=True)
 
     analysis_state = communicate(
         analysis_state=analysis_state,
@@ -51,7 +52,8 @@ def run_full(args):
         out=out,
         frequent_save=args.frequent_save,
     )
-    analysis_state.save(path=out)
+    # Final save - incremental since files already exist
+    analysis_state.save(path=out, incremental=True)
 
 
 def main():
@@ -68,12 +70,12 @@ def main():
     )
 
     parser.add_argument(
-        "-fs",
-        "--frequent-save",
+        "--no-frequent-save",
         dest="frequent_save",
-        action="store_true",
-        help="If set, enables saving after each model fit and communicator run."
+        action="store_false",
+        help="If set, disables saving after each model fit and communicator run. By default, frequent saves are enabled."
     )
+    parser.set_defaults(frequent_save=True)
 
     args = parser.parse_args()
     run_full(args)

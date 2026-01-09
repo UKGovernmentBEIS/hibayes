@@ -267,8 +267,9 @@ def model(
             analysis_state.add_model(model_analysis_state)
 
             if frequent_save:
-                # save model after each fit
-                analysis_state.save(path=out)
+                # save model after each fit (incremental after first save)
+                incremental = (out / "data.parquet").exists()
+                analysis_state.save(path=out, incremental=incremental)
 
     if display.is_live:
         display.stop()
@@ -344,8 +345,9 @@ def communicate(
             )
 
             if frequent_save:
-                # save after each communicator
-                analysis_state.save(path=out)
+                # save after each communicator (incremental after first save)
+                incremental = (out / "data.parquet").exists()
+                analysis_state.save(path=out, incremental=incremental)
 
     if display.is_live:
         display.stop()

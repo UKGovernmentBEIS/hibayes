@@ -25,7 +25,9 @@ def run_communicate(args):
         out=out,
         frequent_save=args.frequent_save
     )
-    analysis_state.save(path=out)
+    # Final save - use incremental if files already exist (from frequent saves or previous run)
+    incremental = (out / "data.parquet").exists()
+    analysis_state.save(path=out, incremental=incremental)
 
 
 def main():
@@ -50,12 +52,12 @@ def main():
     )
 
     parser.add_argument(
-        "-fs",
-        "--frequent-save",
+        "--no-frequent-save",
         dest="frequent_save",
-        action="store_true",
-        help="If set, enables saving after each communicator run."
+        action="store_false",
+        help="If set, disables saving after each communicator run. By default, frequent saves are enabled."
     )
+    parser.set_defaults(frequent_save=True)
 
     args = parser.parse_args()
     run_communicate(args)  # will save the results in the out dir.

@@ -105,7 +105,7 @@ class PlatformConfig:
             return cls()
 
         # Validate config keys
-        allowed_keys = {"device_type", "num_devices", "gpu_memory_fraction", "chain_method"}
+        allowed_keys = {"device_type", "num_devices", "gpu_memory_fraction", "chain_method", "mem_on_demand"}
         _validate_config_keys(config, allowed_keys, "PlatformConfig")
 
         return cls(
@@ -113,4 +113,5 @@ class PlatformConfig:
             num_devices=config.get("num_devices", None),
             gpu_memory_fraction=config.get("gpu_memory_fraction", 0.9),
             chain_method=config.get("chain_method", "parallel"),
+            mem_on_demand=config.get("mem_on_demand", None),
         )
