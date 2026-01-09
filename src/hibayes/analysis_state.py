@@ -10,6 +10,7 @@ import dill as pickle  # type: ignore # dill is used to pickle numpyro models as
 import matplotlib.pyplot as plt
 import pandas as pd
 from arviz import InferenceData
+from xarray import Dataset
 
 import arviz as az
 
@@ -300,6 +301,9 @@ class ModelAnalysisState:
         Folder layout:
 
             <path>/
+              ├── diagnostics/
+              │     ├── <figures>.png
+              │     └── inference_data_<computed diagnostic statistics>.csv/.nc
               ├── metadata.json
               ├── model_config.json
               ├── features.pkl
@@ -358,33 +362,31 @@ class ModelAnalysisState:
 
         # Diagnostics can change during communicate - always save
         if self.diagnostics:
-            _dump_json(self.diagnostics, path / "diagnostics.json")
-            # if any figures save them as pngs:
+            _ensure_dir(path / "diagnostics")
+            _dump_json(self.diagnostics, path / "diagnostics" / "diagnostics.json")
+            # if any objects save them separately (strings are skipped)
             for name, obj in self.diagnostics.items():
-                if not os.path.exists(path / "diagnostic_plots"):
-                    os.makedirs(path / "diagnostic_plots")
+                # save any figures separately as pngs
                 if isinstance(obj, plt.Figure):
                     obj.savefig(
-                        path / "diagnostic_plots" / f"{name}.png",
+                        path / "diagnostics" / f"{name}.png",
                         dpi=300,
                         bbox_inches="tight",
                     )
                     plt.close(obj)
-
-            # if summary is in diagnostics, save as .nc or .csv
-            # Skip if summary is a string (loaded from disk, not recomputed)
-            if "summary" in self.diagnostics and not isinstance(self.diagnostics["summary"], str):
-                target = path / "inference_data_summary.nc"
-
-                # az.summary() should return either pd.DataFrame or xarray.Dataset
-                if isinstance(self.diagnostics["summary"], pd.DataFrame):
-                    self.diagnostics["summary"].to_csv(target)
-
-                else:
+                # if any dataframes/series save as .csv
+                # az.summary returns pd.DataFrame or xarray.Dataset
+                # az.loo, az.waic return ELPDData objects, which inherit from pd.Series
+                elif isinstance(obj, pd.DataFrame) or isinstance(obj, pd.Series):
+                    obj.to_csv(path / "diagnostics" / f"inference_data_{name}.csv")
+                # if any xarray.Dataset objects, save as .nc
+                # az.summary returns pd.DataFrame or xarray.Dataset
+                elif isinstance(obj, Dataset):
+                    target = path / "diagnostics" / f"inference_data_{name}.nc"
                     tmp = target.with_suffix(
                         ".tmp.nc"
                     )  # arviz lazily load the inf data so it remains open. This seems to be the best approach to saving the file
-                    self.diagnostics["summary"].to_netcdf(tmp)
+                    obj.to_netcdf(tmp)
                     tmp.replace(target)
 
         if self.inference_data is not None:
@@ -437,7 +439,9 @@ class ModelAnalysisState:
             )
 
         diagnostics = None
-        if (path / "diagnostics.json").exists():
+        if (path / "diagnostics" / "diagnostics.json").exists():
+            diagnostics = _load_json(path / "diagnostics" / "diagnostics.json")
+        elif (path / "diagnostics.json").exists():  # For backward compatibility
             diagnostics = _load_json(path / "diagnostics.json")
 
         inference_data = None
