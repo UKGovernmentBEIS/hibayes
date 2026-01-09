@@ -6,7 +6,16 @@ description: "Visualising and summarising Bayesian model results"
 Communicators help you _communicate_ your findings. They cover both tables and plots. Again there are a set of default communicators built into hibayes which you can select from.
 
 
-## insert table
+## Built-in Communicators
+
+| Communicator | Purpose | Key Parameters |
+|--------------|---------|----------------|
+| `forest_plot` | Forest plot of parameter estimates with credible intervals | `vars=None`, `vertical_line=None`, `best_model=True`, `transform=False` |
+| `trace_plot` | MCMC trace plots to assess convergence and mixing | `vars=None`, `best_model=True`, `transform=False` |
+| `pair_plot` | Pairwise KDE plots showing parameter correlations | `vars=None`, `best_model=True` |
+| `model_comparison_plot` | Compares models using information criteria (LOO/WAIC) | Requires ≥2 fitted models |
+| `summary_table` | Statistical summary table of posterior parameters | `vars=None`, `best_model=True`, `round_to=2` |
+
 
 
 ## What makes up a communicator?
@@ -31,7 +40,7 @@ def forest_plot(
         Communicate the results of a model analysis.
         """
         nonlocal vars
-        if best_model: # <3> 
+        if best_model: # <3>
             best_model_analysis = state.get_best_model()
             if best_model_analysis is None:
                 raise ValueError("No best model found.")
@@ -69,7 +78,7 @@ def forest_plot(
                         linestyle="--",
                     )
                 fig = plt.gcf()
-                
+
                 state.add_plot( # <4>
                     plot=fig,
                     plot_name=f"model_{model_analysis.model_name}_{'-'.join(vars) if vars else ''}_forest",
