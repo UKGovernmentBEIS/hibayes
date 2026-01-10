@@ -431,7 +431,7 @@ class NumPyroRichProgress:
         self.display.progress.update(
             self.task_id,
             description=self._process_description(description),
-            chain=f"{self.chain_id + 1}/{self.num_chains}",
+            info=f"{self.chain_id + 1}/{self.num_chains}",
             advance=advance,
             completed=min(self.current_iter, self.num_samples),
             total=self.num_samples,

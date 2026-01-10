@@ -10,6 +10,9 @@ import dill as pickle  # type: ignore # dill is used to pickle numpyro models as
 import matplotlib.pyplot as plt
 import pandas as pd
 from arviz import InferenceData
+from xarray import Dataset
+
+import arviz as az
 
 from .model import Model, ModelConfig
 from .platform import PlatformConfig
@@ -140,6 +143,47 @@ class ModelAnalysisState:
         """Get a specific result."""
         return self._diagnostics.get(var, None)
 
+    def get_summary(self, **kwargs) -> pd.DataFrame:
+        """
+        Get or compute the ArviZ summary for this model's inference data.
+
+        This method caches the full summary in diagnostics["summary"] to avoid
+        redundant expensive computations. Both checkers and communicators should
+        use this method instead of calling az.summary() directly.
+
+        Args:
+            **kwargs: Additional keyword arguments passed to az.summary() when
+                computing the summary (e.g., var_names, round_to). Note that the
+                cached summary is computed without these kwargs; they are applied
+                to filter/format the returned result.
+
+        Returns:
+            pd.DataFrame: The ArviZ summary, optionally filtered by var_names.
+        """
+        # Compute and cache full summary if not already present
+        if "summary" not in self._diagnostics or self._diagnostics["summary"] is None:
+            self._diagnostics["summary"] = az.summary(self.inference_data)
+
+        summary = self._diagnostics["summary"]
+
+        # If var_names specified, filter the cached summary
+        var_names = kwargs.get("var_names")
+        if var_names is not None and isinstance(summary, pd.DataFrame):
+            # Filter rows that match any of the var_names patterns
+            matching_rows = []
+            for var in var_names:
+                matching_rows.extend(
+                    [idx for idx in summary.index if idx.startswith(var)]
+                )
+            summary = summary.loc[summary.index.isin(matching_rows)]
+
+        # Apply rounding if specified
+        round_to = kwargs.get("round_to")
+        if round_to is not None and isinstance(summary, pd.DataFrame):
+            summary = summary.round(round_to)
+
+        return summary
+
     @property
     def is_fitted(self) -> bool:
         """Get the fitted status."""
@@ -257,6 +301,9 @@ class ModelAnalysisState:
         Folder layout:
 
             <path>/
+              ├── diagnostics/
+              │     ├── <figures>.png
+              │     └── inference_data_<computed diagnostic statistics>.csv/.nc
               ├── metadata.json
               ├── model_config.json
               ├── features.pkl
@@ -315,33 +362,31 @@ class ModelAnalysisState:
 
         # Diagnostics can change during communicate - always save
         if self.diagnostics:
-            _dump_json(self.diagnostics, path / "diagnostics.json")
-            # if any figures save them as pngs:
+            _ensure_dir(path / "diagnostics")
+            _dump_json(self.diagnostics, path / "diagnostics" / "diagnostics.json")
+            # if any objects save them separately (strings are skipped)
             for name, obj in self.diagnostics.items():
-                if not os.path.exists(path / "diagnostic_plots"):
-                    os.makedirs(path / "diagnostic_plots")
+                # save any figures separately as pngs
                 if isinstance(obj, plt.Figure):
                     obj.savefig(
-                        path / "diagnostic_plots" / f"{name}.png",
+                        path / "diagnostics" / f"{name}.png",
                         dpi=300,
                         bbox_inches="tight",
                     )
                     plt.close(obj)
-
-            # if summary is in diagnostics, save as .nc or .csv
-            # Skip if summary is a string (loaded from disk, not recomputed)
-            if "summary" in self.diagnostics and not isinstance(self.diagnostics["summary"], str):
-                target = path / "inference_data_summary.nc"
-
-                # az.summary() should return either pd.DataFrame or xarray.Dataset
-                if isinstance(self.diagnostics["summary"], pd.DataFrame):
-                    self.diagnostics["summary"].to_csv(target)
-
-                else:
+                # if any dataframes/series save as .csv
+                # az.summary returns pd.DataFrame or xarray.Dataset
+                # az.loo, az.waic return ELPDData objects, which inherit from pd.Series
+                elif isinstance(obj, pd.DataFrame) or isinstance(obj, pd.Series):
+                    obj.to_csv(path / "diagnostics" / f"inference_data_{name}.csv")
+                # if any xarray.Dataset objects, save as .nc
+                # az.summary returns pd.DataFrame or xarray.Dataset
+                elif isinstance(obj, Dataset):
+                    target = path / "diagnostics" / f"inference_data_{name}.nc"
                     tmp = target.with_suffix(
                         ".tmp.nc"
                     )  # arviz lazily load the inf data so it remains open. This seems to be the best approach to saving the file
-                    self.diagnostics["summary"].to_netcdf(tmp)
+                    obj.to_netcdf(tmp)
                     tmp.replace(target)
 
         if self.inference_data is not None:
@@ -394,7 +439,9 @@ class ModelAnalysisState:
             )
 
         diagnostics = None
-        if (path / "diagnostics.json").exists():
+        if (path / "diagnostics" / "diagnostics.json").exists():
+            diagnostics = _load_json(path / "diagnostics" / "diagnostics.json")
+        elif (path / "diagnostics.json").exists():  # For backward compatibility
             diagnostics = _load_json(path / "diagnostics.json")
 
         inference_data = None
