@@ -15,13 +15,6 @@ if TYPE_CHECKING:
     from ..analysis import AnalysisState
     from ..ui import ModellingDisplay
 
-# optionally load inspect scout (if required for merging results)
-try:
-    from inspect_scout import scan_results_df
-    HAS_SCOUT = True
-except ImportError:
-    HAS_SCOUT = False
-
 Features = Dict[str, float | int | jnp.ndarray | np.ndarray]
 Coords = Dict[
     str, List[Any]
@@ -605,22 +598,40 @@ def merge_scout_results(
         join_on_right: "transcript_id"
         prefix: "from_scout_loop"
     """
-    def processor(state: AnalysisState, display: ModellingDisplay | None = None) -> AnalysisState:
-        if not HAS_SCOUT:
-            raise ImportError(
-                "inspect-scout is required for merge_scout_results. "
-                "Install it with: pip install inspect-scout"
-            )
-        
+    try:
+        from inspect_scout import scan_results_df
+    except ImportError:
+        raise ImportError(
+            "inspect-scout is required for merge_scout_results. "
+            "Install it with: pip install inspect-scout"
+        ) from None
+
+    def process(state: AnalysisState, display: ModellingDisplay | None = None) -> AnalysisState:
         if state.processed_data is None or state.processed_data.empty:
             return state
-                
+
+        # Validate join column exists in processed data
+        if join_on_left not in state.processed_data.columns:
+            raise ValueError(
+                f"Column '{join_on_left}' not found in processed data. "
+                f"Available columns: {state.processed_data.columns.tolist()}"
+            )
+
         # Set defaults - include scan_model_usage for the grader model
         cols_to_keep = columns_to_keep or ['value', 'explanation', 'scan_model_usage']
         final_prefix = prefix or scanner_name
         
         # Load Scout results
         scout_results = scan_results_df(scout_scan_path)
+
+        # Validate scanner exists
+        if scanner_name not in scout_results.scanners:
+            available = list(scout_results.scanners.keys())
+            raise ValueError(
+                f"Scanner '{scanner_name}' not found in Scout results. "
+                f"Available scanners: {available}"
+            )
+
         scout_df = scout_results.scanners[scanner_name].copy()
         
         # Extract join column from metadata if it doesn't exist
@@ -629,7 +640,7 @@ def merge_scout_results(
                 try:
                     data = json.loads(meta) if isinstance(meta, str) else meta
                     return data.get(join_on_right) if isinstance(data, dict) else None
-                except:
+                except (json.JSONDecodeError, TypeError, AttributeError):
                     return None
             
             scout_df[join_on_right] = scout_df['transcript_metadata'].apply(extract)
@@ -677,5 +688,5 @@ def merge_scout_results(
         
         state.processed_data = merged
         return state
-    
-    return processor
+
+    return process
