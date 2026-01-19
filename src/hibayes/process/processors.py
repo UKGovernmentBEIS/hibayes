@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 from jax import numpy as jnp
+import json
 
 from ._process import DataProcessor, process
 from .utils import get_category_order, infer_jax_dtype
@@ -562,6 +563,130 @@ def groupby(
             .reset_index()
         )
 
+        return state
+
+    return process
+
+@process
+def merge_scout_results(
+    scout_scan_path: str,
+    scanner_name: str,
+    join_on_left: str = "transcript_id",
+    join_on_right: str = "transcript_id",
+    columns_to_keep: list[str] | None = None,
+    prefix: str | None = None
+) -> DataProcessor:
+    """
+    Merge Scout scan results into the processed data.
+    
+    Requires: inspect-scout (install with: pip install inspect-scout)
+    
+    Parameters:
+    - scout_scan_path: Path to Scout scan directory
+    - scanner_name: Name of the scanner
+    - join_on_left: Column in processed data to join on (default: "transcript_id")
+    - join_on_right: Column in Scout results to join on (default: "transcript_id")
+                     If not found as a column, will auto-extract from transcript_metadata
+    - columns_to_keep: Scout columns to merge (default: ['value', 'explanation', 'scan_model_usage'])
+    - prefix: Prefix for ALL merged columns from Scout (default: scanner_name)
+    
+    Example:
+    - merge_scout_results:
+        scout_scan_path: "scans/scan_id=abc123"
+        scanner_name: "is_looping"
+        join_on_left: "id"
+        join_on_right: "transcript_id"
+        prefix: "from_scout_loop"
+    """
+    try:
+        from inspect_scout import scan_results_df
+    except ImportError:
+        raise ImportError(
+            "inspect-scout is required for merge_scout_results. "
+            "Install it with: pip install inspect-scout"
+        ) from None
+
+    def process(state: AnalysisState, display: ModellingDisplay | None = None) -> AnalysisState:
+        if state.processed_data is None or state.processed_data.empty:
+            return state
+
+        # Validate join column exists in processed data
+        if join_on_left not in state.processed_data.columns:
+            raise ValueError(
+                f"Column '{join_on_left}' not found in processed data. "
+                f"Available columns: {state.processed_data.columns.tolist()}"
+            )
+
+        # Set defaults - include scan_model_usage for the grader model
+        cols_to_keep = columns_to_keep or ['value', 'explanation', 'scan_model_usage']
+        final_prefix = prefix or scanner_name
+        
+        # Load Scout results
+        scout_results = scan_results_df(scout_scan_path)
+
+        # Validate scanner exists
+        if scanner_name not in scout_results.scanners:
+            available = list(scout_results.scanners.keys())
+            raise ValueError(
+                f"Scanner '{scanner_name}' not found in Scout results. "
+                f"Available scanners: {available}"
+            )
+
+        scout_df = scout_results.scanners[scanner_name].copy()
+        
+        # Extract join column from metadata if it doesn't exist
+        if join_on_right not in scout_df.columns:
+            def extract(meta):
+                try:
+                    data = json.loads(meta) if isinstance(meta, str) else meta
+                    return data.get(join_on_right) if isinstance(data, dict) else None
+                except (json.JSONDecodeError, TypeError, AttributeError):
+                    return None
+            
+            scout_df[join_on_right] = scout_df['transcript_metadata'].apply(extract)
+            
+            if display:
+                display.logger.info(f"Extracted '{join_on_right}' from metadata: {scout_df[join_on_right].head(3).tolist()}")
+        
+        # Filter to requested columns
+        cols_to_keep = [c for c in cols_to_keep if c in scout_df.columns]
+        if not cols_to_keep:
+            if display:
+                display.logger.warning("No valid columns to merge")
+            return state
+        
+        # Select columns (including join column)
+        scout_df = scout_df[[join_on_right] + cols_to_keep].copy()
+        
+        # Rename ALL scout columns with prefix (including join column to avoid conflicts)
+        rename_map = {c: f"{final_prefix}_{c}" for c in cols_to_keep}
+        if join_on_left != join_on_right:
+            rename_map[join_on_right] = f"{final_prefix}_{join_on_right}"
+        
+        scout_df = scout_df.rename(columns=rename_map)
+        
+        # Merge
+        before = len(state.processed_data)
+        merged = pd.merge(
+            state.processed_data, 
+            scout_df, 
+            left_on=join_on_left, 
+            right_on=f"{final_prefix}_{join_on_right}" if join_on_left != join_on_right else join_on_right,
+            how='left'
+        )
+        
+        # Drop the renamed join column after merge (we don't need it)
+        join_col_to_drop = f"{final_prefix}_{join_on_right}"
+        if join_col_to_drop in merged.columns:
+            merged = merged.drop(columns=[join_col_to_drop])
+        
+        # Report
+        if display:
+            matched = merged[f"{final_prefix}_{cols_to_keep[0]}"].notna().sum()
+            display.logger.info(f"Merged '{scanner_name}': {matched}/{before} rows matched on {join_on_left}←{join_on_right}")
+            display.logger.info(f"  Added columns: {[f'{final_prefix}_{c}' for c in cols_to_keep]}")
+        
+        state.processed_data = merged
         return state
 
     return process
