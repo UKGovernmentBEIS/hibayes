@@ -129,3 +129,25 @@ model:
 ```
 
 The `@model` decorator registers your function so it can be accessed by name in the config.
+
+## Built-in Models Reference
+
+### Hierarchical Binomial Models
+
+For aggregated success/failure data with grouped structure.
+
+| Model | Description | Variance Priors |
+|-------|-------------|-----------------|
+| `simplified_group_binomial_exponential` | Two-level hierarchy (overall → group). Simple starting point for grouped binomial data. | Exponential on group variance |
+| `two_level_group_binomial` | Two-level hierarchy with reparameterisation for better sampling. Default model for basic grouped data. | HalfNormal on variance components |
+| `three_level_group_binomial` | Three-level hierarchy (overall → group → subgroup → subsubgroup). For deeply nested data like students within schools within districts. | HalfNormal on all variance components |
+| `three_level_group_binomial_exponential` | Three-level hierarchy with simpler exponential priors. Alternative when HalfNormal priors are too informative. | Exponential on all variance components |
+
+### Regression Models
+
+For modelling effects of categorical/continuous predictors.
+
+| Model | Description | Key Parameters |
+|-------|-------------|----------------|
+| `linear_group_binomial` | Non-hierarchical binomial regression. Treats groups as fixed effects rather than random. Supports main effects and interactions with optional effect coding. | `main_effects`, `interactions`, `effect_coding_for_main_effects` |
+| `ordered_logistic_model` | Ordered logistic regression for ordinal outcomes (e.g., 0-10 ratings). Models cumulative probabilities via ordered cutpoints. | `main_effects`, `interactions`, `num_classes`, `effect_coding_for_main_effects` |

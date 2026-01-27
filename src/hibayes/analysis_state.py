@@ -10,6 +10,9 @@ import dill as pickle  # type: ignore # dill is used to pickle numpyro models as
 import matplotlib.pyplot as plt
 import pandas as pd
 from arviz import InferenceData
+from xarray import Dataset
+
+import arviz as az
 
 from .model import Model, ModelConfig
 from .platform import PlatformConfig
@@ -73,6 +76,8 @@ class ModelAnalysisState:
         )
         self._diagnostics: Dict[str, Any] = diagnostics or {}
         self._is_fitted: bool = is_fitted
+        # Track what we last saved to detect changes for incremental saves
+        self._saved_idata_signature: Optional[Dict[str, set]] = None
 
     @property
     def model_name(self) -> str:
@@ -137,6 +142,47 @@ class ModelAnalysisState:
     def diagnostic(self, var: str) -> Any:
         """Get a specific result."""
         return self._diagnostics.get(var, None)
+
+    def get_summary(self, **kwargs) -> pd.DataFrame:
+        """
+        Get or compute the ArviZ summary for this model's inference data.
+
+        This method caches the full summary in diagnostics["summary"] to avoid
+        redundant expensive computations. Both checkers and communicators should
+        use this method instead of calling az.summary() directly.
+
+        Args:
+            **kwargs: Additional keyword arguments passed to az.summary() when
+                computing the summary (e.g., var_names, round_to). Note that the
+                cached summary is computed without these kwargs; they are applied
+                to filter/format the returned result.
+
+        Returns:
+            pd.DataFrame: The ArviZ summary, optionally filtered by var_names.
+        """
+        # Compute and cache full summary if not already present
+        if "summary" not in self._diagnostics or self._diagnostics["summary"] is None:
+            self._diagnostics["summary"] = az.summary(self.inference_data)
+
+        summary = self._diagnostics["summary"]
+
+        # If var_names specified, filter the cached summary
+        var_names = kwargs.get("var_names")
+        if var_names is not None and isinstance(summary, pd.DataFrame):
+            # Filter rows that match any of the var_names patterns
+            matching_rows = []
+            for var in var_names:
+                matching_rows.extend(
+                    [idx for idx in summary.index if idx.startswith(var)]
+                )
+            summary = summary.loc[summary.index.isin(matching_rows)]
+
+        # Apply rounding if specified
+        round_to = kwargs.get("round_to")
+        if round_to is not None and isinstance(summary, pd.DataFrame):
+            summary = summary.round(round_to)
+
+        return summary
 
     @property
     def is_fitted(self) -> bool:
@@ -213,19 +259,63 @@ class ModelAnalysisState:
         features["obs"] = None
         return features
 
-    def save(self, path: Path) -> None:
+    def _get_idata_signature(self) -> Dict[str, set] | None:
+        """Get a signature of the inference_data to detect changes.
+
+        Returns a dict mapping group names to sets of variable names.
+        Returns None if inference_data is None or empty.
+        """
+        if self._inference_data is None:
+            return None
+        try:
+            groups = list(self._inference_data._groups)
+            if not groups:
+                return None
+            sig = {}
+            for group in groups:
+                ds = getattr(self._inference_data, group, None)
+                if ds is not None and hasattr(ds, "data_vars"):
+                    sig[group] = set(ds.data_vars.keys())
+                else:
+                    sig[group] = set()
+            return sig
+        except Exception:
+            # If we can't get signature, assume changed
+            return None
+
+    def _idata_has_changed(self) -> bool:
+        """Check if inference_data has changed since last save."""
+        if self._saved_idata_signature is None:
+            # Never saved, so consider it changed
+            return True
+        current_sig = self._get_idata_signature()
+        if current_sig is None:
+            # Can't determine, assume changed
+            return True
+        return current_sig != self._saved_idata_signature
+
+    def save(self, path: Path, incremental: bool = False) -> None:
         """
         save the model state
 
         Folder layout:
 
             <path>/
+              ├── diagnostics/
+              │     ├── <figures>.png
+              │     └── inference_data_<computed diagnostic statistics>.csv/.nc
               ├── metadata.json
               ├── model_config.json
               ├── features.pkl
               ├── coords.json
               ├── diagnostics.json
               └── inference_data.nc notive netcdf - see arviz for more info
+
+        Args:
+            path: Directory to save the model state to.
+            incremental: If True, skip saving heavy immutable data (features, model.pkl)
+                         if they already exist on disk. Still saves inference_data and
+                         diagnostics which may change during communicate.
         """
         _ensure_dir(path)
 
@@ -241,42 +331,75 @@ class ModelAnalysisState:
         # Save platform config
         _dump_json(self.platform_config, path / "platform_config.json")
 
+        # These don't change after initial model setup - skip if incremental and exists
         if self.features:
-            with (path / "features.pkl").open("wb") as fp:
-                pickle.dump(self.features, fp)
+            features_path = path / "features.pkl"
+            if not incremental or not features_path.exists():
+                with features_path.open("wb") as fp:
+                    pickle.dump(self.features, fp)
+
         if self.test_features:
-            with (path / "test_features.pkl").open("wb") as fp:
-                pickle.dump(self.test_features, fp)
+            test_features_path = path / "test_features.pkl"
+            if not incremental or not test_features_path.exists():
+                with test_features_path.open("wb") as fp:
+                    pickle.dump(self.test_features, fp)
+
         if self.coords is not None:
-            _dump_json(self.coords, path / "coords.json")
+            coords_path = path / "coords.json"
+            if not incremental or not coords_path.exists():
+                _dump_json(self.coords, coords_path)
 
         if self.dims is not None:
-            _dump_json(self.dims, path / "dims.json")
+            dims_path = path / "dims.json"
+            if not incremental or not dims_path.exists():
+                _dump_json(self.dims, dims_path)
 
-        with (path / "model.pkl").open("wb") as fp:
-            pickle.dump(self.model, fp)
+        # Model function doesn't change - skip if incremental and exists
+        model_path = path / "model.pkl"
+        if not incremental or not model_path.exists():
+            with model_path.open("wb") as fp:
+                pickle.dump(self.model, fp)
 
+        # Diagnostics can change during communicate - always save
         if self.diagnostics:
-            _dump_json(self.diagnostics, path / "diagnostics.json")
-            # if any figures save them as pngs:
+            _ensure_dir(path / "diagnostics")
+            _dump_json(self.diagnostics, path / "diagnostics" / "diagnostics.json")
+            # if any objects save them separately (strings are skipped)
             for name, obj in self.diagnostics.items():
-                if not os.path.exists(path / "diagnostic_plots"):
-                    os.makedirs(path / "diagnostic_plots")
+                # save any figures separately as pngs
                 if isinstance(obj, plt.Figure):
                     obj.savefig(
-                        path / "diagnostic_plots" / f"{name}.png",
+                        path / "diagnostics" / f"{name}.png",
                         dpi=300,
                         bbox_inches="tight",
                     )
                     plt.close(obj)
+                # if any dataframes/series save as .csv
+                # az.summary returns pd.DataFrame or xarray.Dataset
+                # az.loo, az.waic return ELPDData objects, which inherit from pd.Series
+                elif isinstance(obj, pd.DataFrame) or isinstance(obj, pd.Series):
+                    obj.to_csv(path / "diagnostics" / f"inference_data_{name}.csv")
+                # if any xarray.Dataset objects, save as .nc
+                # az.summary returns pd.DataFrame or xarray.Dataset
+                elif isinstance(obj, Dataset):
+                    target = path / "diagnostics" / f"inference_data_{name}.nc"
+                    tmp = target.with_suffix(
+                        ".tmp.nc"
+                    )  # arviz lazily load the inf data so it remains open. This seems to be the best approach to saving the file
+                    obj.to_netcdf(tmp)
+                    tmp.replace(target)
 
         if self.inference_data is not None:
-            target = path / "inference_data.nc"
-            tmp = target.with_suffix(
-                ".tmp.nc"
-            )  # arviz lazily load the inf data so it remains open. This seems to be the best approach to saving the file
-            self.inference_data.to_netcdf(tmp)
-            tmp.replace(target)
+            should_save_idata = not incremental or self._idata_has_changed()
+            if should_save_idata:
+                target = path / "inference_data.nc"
+                tmp = target.with_suffix(
+                    ".tmp.nc"
+                )  # arviz lazily load the inf data so it remains open. This seems to be the best approach to saving the file
+                self.inference_data.to_netcdf(tmp)
+                tmp.replace(target)
+                # Update saved signature after successful save
+                self._saved_idata_signature = self._get_idata_signature()
 
     @classmethod
     def load(cls, path: Path) -> "ModelAnalysisState":
@@ -316,7 +439,9 @@ class ModelAnalysisState:
             )
 
         diagnostics = None
-        if (path / "diagnostics.json").exists():
+        if (path / "diagnostics" / "diagnostics.json").exists():
+            diagnostics = _load_json(path / "diagnostics" / "diagnostics.json")
+        elif (path / "diagnostics.json").exists():  # For backward compatibility
             diagnostics = _load_json(path / "diagnostics.json")
 
         inference_data = None
@@ -358,8 +483,8 @@ class AnalysisState:
         dims: Optional[
             "Dims"
         ] = None,  # variable names to coordinates - used for nice plotting vars
-        models: List[ModelAnalysisState] = [],
-        communicate: Dict[str, plt.Figure | pd.DataFrame] = {},
+        models: Optional[List[ModelAnalysisState]] = None,
+        communicate: Optional[Dict[str, plt.Figure | pd.DataFrame]] = None,
         logs: Optional[Dict[str, List[str]]] = None,  # logs keyed by stage name
         display_stats: Optional[Dict[str, Any]] = None,  # persistent display statistics
     ) -> None:
@@ -375,9 +500,9 @@ class AnalysisState:
         )
         self._coords: "Coords" | None = coords
         self._dims: "Dims" | None = dims
-        self._models: List[ModelAnalysisState] = models
-        self._communicate: Dict[str, plt.Figure | pd.DataFrame] | None = (
-            communicate  # plots of findings
+        self._models: List[ModelAnalysisState] = models if models is not None else []
+        self._communicate: Dict[str, plt.Figure | pd.DataFrame] = (
+            communicate if communicate is not None else {}  # plots of findings
         )
         self._logs: Dict[str, List[str]] = logs if logs is not None else {}
         self._display_stats: Dict[str, Any] = (
@@ -618,7 +743,7 @@ class AnalysisState:
         )
         return best_model
 
-    def save(self, path: Path) -> None:
+    def save(self, path: Path, incremental: bool = False) -> None:
         """
         save the analysis state
 
@@ -636,34 +761,53 @@ class AnalysisState:
               │     └── <name>.parquet
               └── models/
                     └── <model_name>/ then see ModelAnalysisState.save
+
+        Args:
+            path: Directory to save the analysis state to.
+            incremental: If True, skip saving heavy immutable data (data.parquet,
+                         processed_data.parquet, features.pkl) if they already exist
+                         on disk. Communicate outputs and model states are still saved.
         """
         _ensure_dir(path)
 
-        self.data.to_parquet(
-            path / "data.parquet",
-            engine="pyarrow",  # auto might result in different engines in different setups)
-            compression="snappy",
-        )
-
-        if self.processed_data is not None:
-            self.processed_data.to_parquet(
-                path / "processed_data.parquet",
+        data_path = path / "data.parquet"
+        if not incremental or not data_path.exists():
+            self.data.to_parquet(
+                data_path,
                 engine="pyarrow",  # auto might result in different engines in different setups)
                 compression="snappy",
             )
+
+        if self.processed_data is not None:
+            processed_data_path = path / "processed_data.parquet"
+            if not incremental or not processed_data_path.exists():
+                self.processed_data.to_parquet(
+                    processed_data_path,
+                    engine="pyarrow",  # auto might result in different engines in different setups)
+                    compression="snappy",
+                )
+
         if self.features:
-            with (path / "features.pkl").open("wb") as fp:
-                pickle.dump(self.features, fp)
+            features_path = path / "features.pkl"
+            if not incremental or not features_path.exists():
+                with features_path.open("wb") as fp:
+                    pickle.dump(self.features, fp)
 
         if self.test_features:
-            with (path / "test_features.pkl").open("wb") as fp:
-                pickle.dump(self.test_features, fp)
+            test_features_path = path / "test_features.pkl"
+            if not incremental or not test_features_path.exists():
+                with test_features_path.open("wb") as fp:
+                    pickle.dump(self.test_features, fp)
 
         if self.coords is not None:
-            _dump_json(self.coords, path / "coords.json")
+            coords_path = path / "coords.json"
+            if not incremental or not coords_path.exists():
+                _dump_json(self.coords, coords_path)
 
         if self.dims is not None:
-            _dump_json(self.dims, path / "dims.json")
+            dims_path = path / "dims.json"
+            if not incremental or not dims_path.exists():
+                _dump_json(self.dims, dims_path)
 
         # Save logs to logs/logs_<stage>.txt for each stage
         if self._logs:
@@ -701,7 +845,7 @@ class AnalysisState:
         _ensure_dir(models_root)
 
         for model_state in self._models:
-            model_state.save(models_root / model_state.model_name)
+            model_state.save(models_root / model_state.model_name, incremental=incremental)
 
     @classmethod
     def load(cls, path: Path) -> "AnalysisState":

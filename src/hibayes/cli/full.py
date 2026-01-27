@@ -39,15 +39,21 @@ def run_full(args):
         checker_config=config.checkers,
         platform_config=config.platform,
         display=display,
+        out=out,
+        frequent_save=args.frequent_save,
     )
-    analysis_state.save(path=out)
+    # Save after model - incremental since files already exist
+    analysis_state.save(path=out, incremental=True)
 
     analysis_state = communicate(
         analysis_state=analysis_state,
         communicate_config=config.communicate,
         display=display,
+        out=out,
+        frequent_save=args.frequent_save,
     )
-    analysis_state.save(path=out)
+    # Final save - incremental since files already exist
+    analysis_state.save(path=out, incremental=True)
 
 
 def main():
@@ -62,6 +68,14 @@ def main():
     parser.add_argument(
         "--out", required=True, help="dir path to write the DVC tracking files"
     )
+
+    parser.add_argument(
+        "--no-frequent-save",
+        dest="frequent_save",
+        action="store_false",
+        help="If set, disables saving after each model fit and communicator run. By default, frequent saves are enabled."
+    )
+    parser.set_defaults(frequent_save=True)
 
     args = parser.parse_args()
     run_full(args)
