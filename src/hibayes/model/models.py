@@ -132,6 +132,7 @@ def two_level_group_binomial(
 @model
 def ordered_logistic_model(
     main_effects: Optional[List[str]] = None,
+    continuous_effects: Optional[List[str]] = None,
     interactions: Optional[List[tuple]] = None,
     num_classes: int = 11,
     effect_coding_for_main_effects: bool = True,
@@ -139,6 +140,8 @@ def ordered_logistic_model(
     prior_intercept_scale: float = 1.0,
     prior_main_effects_loc: float = 0.0,
     prior_main_effects_scale: float = 1.0,
+    prior_continuous_loc: float = 0.0,
+    prior_continuous_scale: float = 1.0,
     prior_interaction_loc: float = 0.0,
     prior_interaction_scale: float = 1.0,
     prior_first_cutpoint_loc: float = -4.0,
@@ -152,37 +155,58 @@ def ordered_logistic_model(
 
     Args:
         main_effects: List of categorical variables to include as main effects
+        continuous_effects: List of continuous variables to include as main effects
         interactions: List of tuples specifying interactions (e.g., [('var1', 'var2')])
         num_classes: Number of ordered categories in the outcome
-        effect_coding_for_main_effects: Whether to use effect coding (sum-to-zero constraint)
+        effect_coding_for_main_effects: Whether to use effect coding
+        (sum-to-zero constraint)
         prior_intercept_loc: Mean of the normal prior for intercept
         prior_intercept_scale: Scale of the normal prior for intercept
         prior_main_effects_loc: Mean of the normal prior for main effects
         prior_main_effects_scale: Scale of the normal prior for main effects
+        prior_continuous_loc: Mean of the normal prior for continuous effects
+        prior_continuous_scale: Scale of the normal prior for continuous effects
         prior_interaction_loc: Mean of the normal prior for interactions
         prior_interaction_scale: Scale of the normal prior for interactions
         prior_first_cutpoint_loc: Mean of the normal prior for first cutpoint
         prior_first_cutpoint_scale: Scale of the normal prior for first cutpoint
         prior_cutpoint_diffs_loc: Mean of the log-normal prior for cutpoint differences
-        prior_cutpoint_diffs_scale: Scale of the log-normal prior for cutpoint differences
-        min_cutpoint_spacing: Minimum spacing between cutpoints to ensure identifiability
+        prior_cutpoint_diffs_scale: Scale of the log-normal prior for cutpoint
+        differences
+        min_cutpoint_spacing: Minimum spacing between cutpoints to ensure
+        identifiability
     """
 
     def model(features: Features) -> None:
         # Check required features
         required_features = ["obs"]
 
-        # Add requirements for main effects
+        # Add requirements for categorical main effects
         if main_effects:
             for effect in main_effects:
                 required_features.extend([f"{effect}_index", f"num_{effect}"])
 
+        # Add requirements for continuous effects
+        if continuous_effects:
+            for effect in continuous_effects:
+                required_features.append(effect)
+
         # Add requirements for interactions
         if interactions:
             for var1, var2 in interactions:
-                required_features.extend(
-                    [f"{var1}_index", f"num_{var1}", f"{var2}_index", f"num_{var2}"]
-                )
+                # Determine if each variable is continuous or categorical
+                is_var1_continuous = continuous_effects and var1 in continuous_effects
+                is_var2_continuous = continuous_effects and var2 in continuous_effects
+
+                if not is_var1_continuous:
+                    required_features.extend([f"{var1}_index", f"num_{var1}"])
+                else:
+                    required_features.append(var1)
+
+                if not is_var2_continuous:
+                    required_features.extend([f"{var2}_index", f"num_{var2}"])
+                else:
+                    required_features.append(var2)
 
         check_features(features, required_features)
 
@@ -191,6 +215,7 @@ def ordered_logistic_model(
         prior_main_effect = dist.Normal(
             prior_main_effects_loc, prior_main_effects_scale
         )
+        prior_continuous = dist.Normal(prior_continuous_loc, prior_continuous_scale)
         prior_interaction = dist.Normal(prior_interaction_loc, prior_interaction_scale)
         prior_first_cutpoint = dist.Normal(
             prior_first_cutpoint_loc, prior_first_cutpoint_scale
@@ -203,7 +228,7 @@ def ordered_logistic_model(
         intercept = numpyro.sample("intercept", prior_intercept)
         eta = intercept
 
-        # Add main effects
+        # Add categorical main effects
         if main_effects:
             for effect in main_effects:
                 n_levels = features[f"num_{effect}"]
@@ -233,15 +258,49 @@ def ordered_logistic_model(
                     
                 eta += coefs[idx]
 
+        # Add continuous main effects
+        if continuous_effects:
+            for effect in continuous_effects:
+                coef = numpyro.sample(f"{effect}_coef", prior_continuous)
+                eta += coef * features[effect]
+
         # Add interaction effects
         if interactions:
             for var1, var2 in interactions:
-                interaction_matrix = create_interaction_effects(
-                    var1, var2, features, prior_interaction
-                )
-                idx1 = features[f"{var1}_index"]
-                idx2 = features[f"{var2}_index"]
-                eta += interaction_matrix[idx1, idx2]
+                is_var1_continuous = continuous_effects and var1 in continuous_effects
+                is_var2_continuous = continuous_effects and var2 in continuous_effects
+
+                if is_var1_continuous and is_var2_continuous:
+                    # Continuous × Continuous
+                    coef = numpyro.sample(f"{var1}_{var2}_effects", prior_interaction)
+                    eta += coef * features[var1] * features[var2]
+
+                elif is_var1_continuous and not is_var2_continuous:
+                    # Continuous × Categorical: one slope per category
+                    idx2 = features[f"{var2}_index"]
+                    n2 = features[f"num_{var2}"]
+                    slopes = numpyro.sample(
+                        f"{var1}_{var2}_effects", prior_interaction.expand([n2])
+                    )
+                    eta += slopes[idx2] * features[var1]
+
+                elif not is_var1_continuous and is_var2_continuous:
+                    # Categorical × Continuous: one slope per category
+                    idx1 = features[f"{var1}_index"]
+                    n1 = features[f"num_{var1}"]
+                    slopes = numpyro.sample(
+                        f"{var1}_{var2}_effects", prior_interaction.expand([n1])
+                    )
+                    eta += slopes[idx1] * features[var2]
+
+                else:
+                    # Categorical × Categorical
+                    interaction_matrix = create_interaction_effects(
+                        var1, var2, features, prior_interaction
+                    )
+                    idx1 = features[f"{var1}_index"]
+                    idx2 = features[f"{var2}_index"]
+                    eta += interaction_matrix[idx1, idx2]
 
         # Cutpoints with ordered constraint
         first_cutpoint = numpyro.sample("first_cutpoint", prior_first_cutpoint)

@@ -1840,6 +1840,7 @@ models:
             assert model_analysis_state.is_fitted is True
             assert model_analysis_state.inference_data == mock_inference_data
 
+
 class TestDummyCoding:
     """Test models with dummy coding (effect_coding_for_main_effects=False)."""
 
@@ -1848,9 +1849,9 @@ class TestDummyCoding:
         from hibayes.model.models import ordered_logistic_model
 
         model_instance = ordered_logistic_model(
-            main_effects=["grader"],
+            categorical_effects=["grader"],
             effect_coding_for_main_effects=False,  # Use dummy coding
-            num_classes=5
+            num_classes=5,
         )
 
         features = {
@@ -1872,9 +1873,11 @@ class TestDummyCoding:
             else:
                 # Default fallback
                 return jnp.array(0.0)
-        
-        with patch("numpyro.sample", side_effect=mock_sample_side_effect), \
-             patch("numpyro.deterministic"):
+
+        with (
+            patch("numpyro.sample", side_effect=mock_sample_side_effect),
+            patch("numpyro.deterministic"),
+        ):
             result = model_instance(features)
             assert result is None
 
@@ -1903,9 +1906,11 @@ class TestDummyCoding:
             else:
                 # Default fallback
                 return jnp.array(0.0)
-        
-        with patch("numpyro.sample", side_effect=mock_sample_side_effect), \
-             patch("numpyro.deterministic"):
+
+        with (
+            patch("numpyro.sample", side_effect=mock_sample_side_effect),
+            patch("numpyro.deterministic"),
+        ):
             result = model_instance(features)
             assert result is None
 
@@ -1934,10 +1939,11 @@ class TestDummyCoding:
             else:
                 # Default fallback
                 return jnp.array(0.0)
-        
-        with patch("numpyro.sample", side_effect=mock_sample_side_effect) as mock_sample, \
-             patch("numpyro.deterministic") as mock_deterministic:
 
+        with (
+            patch("numpyro.sample", side_effect=mock_sample_side_effect) as mock_sample,
+            patch("numpyro.deterministic") as mock_deterministic,
+        ):
             model_instance(features)
 
             # Verify that a deterministic site was created for group_effects
@@ -1948,5 +1954,116 @@ class TestDummyCoding:
             sample_calls = [c[0][0] for c in mock_sample.call_args_list]
             # After fix: should use "group_effects_raw" or similar
             # Before fix: would use "group_effects" causing collision
-            assert "group_effects" not in sample_calls, "Sample site should not use 'group_effects' name"
-            assert "group_effects_raw" in sample_calls, "Sample site should use 'group_effects_raw' name"
+            assert "group_effects" not in sample_calls, (
+                "Sample site should not use 'group_effects' name"
+            )
+            assert "group_effects_raw" in sample_calls, (
+                "Sample site should use 'group_effects_raw' name"
+            )
+
+
+class TestOrderedLogContinuousEffects:
+    """Test ordered_logistic_model with continuous effects."""
+
+    def setUp(self):
+        """Set up test data for ordered_logistic with continuous effects."""
+        self.features = {
+                "obs": jnp.array([0, 1, 2, 1, 0]),
+                "num_grader": 3,
+                "grader_index": jnp.array([0, 0, 1, 1, 2]),
+                "response_length": jnp.array([1.5, 2.0, 2.5, 1.0, 3.0]),
+            }
+    
+    def _create_base_mock_sample(self, **extra_mocks):
+        """Create a mock sample side effect with common mocks plus custom ones.
+        
+        Args:
+            **extra_mocks: Additional name->value mappings to add to the mock
+        """
+        # Base mocks that are common across tests
+        mocks = {
+            "intercept": jnp.array(0.0),
+            "grader_effects_constrained": jnp.array([0.1, 0.2]),
+            "response_length_coef": jnp.array(0.5),
+            "first_cutpoint": jnp.array(-2.0),
+            "cutpoint_diffs": jnp.array([0.5, 0.6, 0.7]),
+        }
+        
+        # Add any extra mocks provided
+        mocks.update(extra_mocks)
+        
+        def mock_sample_side_effect(name, dist_obj, *args, **kwargs):
+            return mocks.get(name, jnp.array(0.0))
+        
+        return mock_sample_side_effect
+
+    def test_ordered_logistic_model_with_continuous_effects_no_error(self):
+        """Test ordered_logistic_model with continuous effects doesn't raise errors."""
+        from hibayes.model.models import ordered_logistic_model
+        self.setUp()
+
+        model_instance = ordered_logistic_model(
+            main_effects=["grader"],
+            continuous_effects=["response_length"],
+            num_classes=5,
+        )
+
+        # Mock numpyro.sample to return appropriate values based on sample name
+        with (
+            patch("numpyro.sample", side_effect=self._create_base_mock_sample()),
+            patch("numpyro.deterministic"),
+        ):
+            result = model_instance(self.features)
+            assert result is None
+
+    def test_ordered_logistic_model_with_cat_con_interactions(self):
+        """Test that continuous interactions are handled without error."""
+        from hibayes.model.models import ordered_logistic_model
+        self.setUp()
+
+        model_instance = ordered_logistic_model(
+            main_effects=["grader"],
+            continuous_effects=["response_length"],
+            interactions=[("grader", "response_length")],
+            num_classes=5,
+        )
+
+        # Add the interaction-specific mock
+        mock_sample = self._create_base_mock_sample(
+            grader_response_length_effects=jnp.array([0.05, 0.1, 0.15])
+        )
+
+        with (
+            patch("numpyro.sample", side_effect=mock_sample),
+            patch("numpyro.deterministic"),
+        ):
+            result = model_instance(self.features)
+            assert result is None
+
+    def test_ordered_logistic_model_with_con_con_interactions(self):
+        """Test that continuous interactions are handled without error."""
+        from hibayes.model.models import ordered_logistic_model
+        self.setUp()
+
+        model_instance = ordered_logistic_model(
+            main_effects=["grader"],
+            continuous_effects=["response_length", "time_taken"],
+            interactions=[("response_length", "time_taken")],
+            num_classes=5,
+        )
+
+        # add time_taken as a feature
+        self.features["time_taken"] = jnp.array([0.5, 1.0, 1.5, 0.2, 0.8])
+
+        # Add the interaction-specific mock
+        mock_sample = self._create_base_mock_sample(
+            time_taken_coef=jnp.array(0.3),
+            response_length_time_taken_effects=jnp.array(0.02) 
+        )
+
+        with (
+            patch("numpyro.sample", side_effect=mock_sample),
+            patch("numpyro.deterministic"),
+        ):
+            result = model_instance(self.features)
+            assert result is None
