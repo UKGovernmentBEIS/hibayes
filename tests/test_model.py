@@ -1849,7 +1849,7 @@ class TestDummyCoding:
         from hibayes.model.models import ordered_logistic_model
 
         model_instance = ordered_logistic_model(
-            categorical_effects=["grader"],
+            main_effects=["grader"],
             effect_coding_for_main_effects=False,  # Use dummy coding
             num_classes=5,
         )
