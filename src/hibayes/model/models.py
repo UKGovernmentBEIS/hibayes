@@ -159,7 +159,7 @@ def ordered_logistic_model(
         interactions: List of tuples specifying interactions (e.g., [('var1', 'var2')])
         num_classes: Number of ordered categories in the outcome
         effect_coding_for_main_effects: Whether to use effect coding
-        (sum-to-zero constraint)
+            (sum-to-zero constraint)
         prior_intercept_loc: Mean of the normal prior for intercept
         prior_intercept_scale: Scale of the normal prior for intercept
         prior_main_effects_loc: Mean of the normal prior for main effects
@@ -170,12 +170,20 @@ def ordered_logistic_model(
         prior_interaction_scale: Scale of the normal prior for interactions
         prior_first_cutpoint_loc: Mean of the normal prior for first cutpoint
         prior_first_cutpoint_scale: Scale of the normal prior for first cutpoint
-        prior_cutpoint_diffs_loc: Mean of the log-normal prior for cutpoint differences
+        prior_cutpoint_diffs_loc: Mean of the log-normal prior for cutpoint
+            differences
         prior_cutpoint_diffs_scale: Scale of the log-normal prior for cutpoint
-        differences
+            differences
         min_cutpoint_spacing: Minimum spacing between cutpoints to ensure
-        identifiability
+            identifiability
     """
+
+    if main_effects and continuous_effects:
+        overlap = set(main_effects) & set(continuous_effects)
+        if overlap:
+            raise ValueError(
+                f"Variables cannot be in both main_effects and continuous_effects: {overlap}"
+            )
 
     def model(features: Features) -> None:
         # Check required features
