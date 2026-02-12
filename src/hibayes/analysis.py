@@ -226,9 +226,12 @@ def model(
     checker_config: CheckerConfig,
     platform_config: PlatformConfig,
     display: ModellingDisplay,
-    out: Path,
+    out: Optional[Path] = None,
     frequent_save: bool = False,
 ) -> AnalysisState:
+    if frequent_save and out is None:
+        raise ValueError("'out' path must be provided when frequent_save=True")
+
     display.setupt_for_modelling()
 
     if not display.is_live:
@@ -320,10 +323,12 @@ def communicate(
     analysis_state: AnalysisState,
     communicate_config: CommunicateConfig,
     display: ModellingDisplay,
-    out: Path,
-    frequent_save: bool = False
+    out: Optional[Path] = None,
+    frequent_save: bool = False,
 ):
     """Run communication on the model."""
+    if frequent_save and out is None:
+        raise ValueError("'out' path must be provided when frequent_save=True")
 
     if not display.is_live:
         display.start()
@@ -357,14 +362,3 @@ def communicate(
     # Capture display stats for persistence
     analysis_state.display_stats = display.get_stats_for_persistence()
     return analysis_state
-
-
-def stamp():
-    """
-    Use DVC to version the data, model, and outputs.
-    """
-    pass
-
-
-def check_attributes():
-    pass
