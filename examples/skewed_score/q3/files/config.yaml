@@ -62,7 +62,3 @@ communicate:
     - forest_plot: {combined: true, figsize: [10,10], vertical_line: 0}
     - summary_table
     - model_comparison_plot
-
-platform:
-  device_type: gpu
-  chain_method: vectorized
