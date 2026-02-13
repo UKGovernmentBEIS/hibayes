@@ -6,7 +6,7 @@ from ..platform import configure_computation_platform
 from ..ui import ModellingDisplay
 
 
-def run_process(args):
+def run_process(args, display=None):
     config = AnalysisConfig.from_yaml(args.config)
 
     # Load from existing analysis state
@@ -17,7 +17,8 @@ def run_process(args):
         else None
     )
 
-    display = ModellingDisplay(initial_stats=initial_stats)
+    if display is None:
+        display = ModellingDisplay(initial_stats=initial_stats)
     out = pathlib.Path(args.out)
 
     configure_computation_platform(
@@ -56,8 +57,20 @@ def main():
     parser.add_argument(
         "--out", required=True, help="dir path to save the analysis state to."
     )
+    parser.add_argument(
+        "--no-tui",
+        dest="use_tui",
+        action="store_false",
+        help="Use classic Rich display instead of interactive TUI",
+    )
+    parser.set_defaults(use_tui=True)
+
     args = parser.parse_args()
-    run_process(args)
+    if args.use_tui:
+        from ..ui.textual.app import run_with_tui
+        run_with_tui(run_process, args)
+    else:
+        run_process(args)
 
 
 if __name__ == "__main__":

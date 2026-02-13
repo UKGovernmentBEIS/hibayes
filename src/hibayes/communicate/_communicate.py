@@ -8,7 +8,7 @@ from typing import (
 
 from ..analysis_state import AnalysisState
 from ..registry import RegistryInfo, registry_add, registry_tag
-from ..ui import ModellingDisplay
+from ..ui import Display
 
 CommunicateResult = Literal["pass", "fail", "error", "NA"]
 
@@ -21,7 +21,7 @@ class Communicator(Protocol):
     def __call__(
         self,
         state: AnalysisState,
-        display: ModellingDisplay | None = None,
+        display: Display | None = None,
     ) -> Tuple[AnalysisState, Literal["pass", "fail", "error", "NA"]]:
         """
         Perform the communication.
@@ -54,7 +54,7 @@ def communicate(
         @wraps(communicate_builder)
         def communicator_interface(
             state: AnalysisState,
-            display: ModellingDisplay | None = None,
+            display: Display | None = None,
         ) -> Tuple[AnalysisState, CommunicateResult]:
             """
             Wrapper to enforce the interface of the communicator.

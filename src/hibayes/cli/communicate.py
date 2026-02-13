@@ -5,15 +5,16 @@ from ..analysis import AnalysisConfig, AnalysisState, communicate
 from ..ui import ModellingDisplay
 
 
-def run_communicate(args):
+def run_communicate(args, display=None):
     analysis_state = AnalysisState.load(path=pathlib.Path(args.analysis_state))
     config = AnalysisConfig.from_yaml(args.config)
 
-    display = ModellingDisplay(
-        initial_stats=analysis_state.display_stats
-        if analysis_state.display_stats
-        else None
-    )
+    if display is None:
+        display = ModellingDisplay(
+            initial_stats=analysis_state.display_stats
+            if analysis_state.display_stats
+            else None
+        )
     out = pathlib.Path(args.out)
 
     out.mkdir(parents=True, exist_ok=True)
@@ -59,8 +60,20 @@ def main():
     )
     parser.set_defaults(frequent_save=True)
 
+    parser.add_argument(
+        "--no-tui",
+        dest="use_tui",
+        action="store_false",
+        help="Use classic Rich display instead of interactive TUI",
+    )
+    parser.set_defaults(use_tui=True)
+
     args = parser.parse_args()
-    run_communicate(args)  # will save the results in the out dir.
+    if args.use_tui:
+        from ..ui.textual.app import run_with_tui
+        run_with_tui(run_communicate, args)
+    else:
+        run_communicate(args)
 
 
 if __name__ == "__main__":

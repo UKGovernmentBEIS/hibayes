@@ -5,9 +5,10 @@ from ..analysis import AnalysisConfig, load_data
 from ..ui import ModellingDisplay
 
 
-def run_load(args):
+def run_load(args, display=None):
     config = AnalysisConfig.from_yaml(args.config)
-    display = ModellingDisplay()
+    if display is None:
+        display = ModellingDisplay()
     analysis_state = load_data(config=config.data_loader, display=display)
     out = pathlib.Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -25,8 +26,20 @@ def main():
         "--out", required=True, help="Where to write the DVC tracking files"
     )
 
+    parser.add_argument(
+        "--no-tui",
+        dest="use_tui",
+        action="store_false",
+        help="Use classic Rich display instead of interactive TUI",
+    )
+    parser.set_defaults(use_tui=True)
+
     args = parser.parse_args()
-    run_load(args)
+    if args.use_tui:
+        from ..ui.textual.app import run_with_tui
+        run_with_tui(run_load, args)
+    else:
+        run_load(args)
 
 
 if __name__ == "__main__":

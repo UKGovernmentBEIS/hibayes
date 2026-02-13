@@ -9,7 +9,7 @@ from typing import (
 
 from ..analysis_state import ModelAnalysisState
 from ..registry import RegistryInfo, registry_add, registry_tag
-from ..ui import ModellingDisplay
+from ..ui import Display
 
 CheckerResult = Literal["pass", "fail", "error", "NA"]
 
@@ -21,7 +21,7 @@ class Checker(Protocol):
     """
 
     def __call__(
-        self, state: ModelAnalysisState, display: ModellingDisplay | None = None
+        self, state: ModelAnalysisState, display: Display | None = None
     ) -> Tuple[ModelAnalysisState, CheckerResult]:
         """
         Perform the check.
@@ -63,15 +63,15 @@ def checker(
             @wraps(checker_builder)
             def checker_interface(
                 state: ModelAnalysisState,
-                display: ModellingDisplay | None = None,
+                display: Display | None = None,
             ) -> Tuple[ModelAnalysisState, CheckerResult]:
                 """
                 Wrapper to enforce the interface of the checker.
                 """
                 if not isinstance(state, ModelAnalysisState):
                     raise TypeError("state must be an instance of ModelAnalysisState")
-                if display is not None and not isinstance(display, ModellingDisplay):
-                    raise TypeError("display must be an instance of ModellingDisplay")
+                if display is not None and not isinstance(display, Display):
+                    raise TypeError("display must satisfy the Display protocol")
 
                 return checker(state, display)
 

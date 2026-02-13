@@ -1,0 +1,46 @@
+/* HiBayes TUI stylesheet */
+
+/* --- App-level layout --- */
+HiBayesApp {
+    layout: vertical;
+}
+
+/* --- Logs panel (compact, global) --- */
+#logs-panel {
+    height: 6;
+    max-height: 8;
+}
+
+/* --- Main body fills remaining space --- */
+#main-body {
+    height: 1fr;
+}
+
+/* --- Model dashboard takes most of the width --- */
+#model-dashboard {
+    width: 3fr;
+}
+
+/* --- Stats panel on the right --- */
+#stats-panel {
+    width: 1fr;
+    max-width: 40;
+}
+
+/* --- Model selector bar --- */
+#model-selector-bar {
+    height: auto;
+    max-height: 5;
+    background: $surface;
+    border-bottom: solid $primary-background;
+}
+
+/* --- Content switcher fills remaining space --- */
+#model-content-switcher {
+    height: 1fr;
+}
+
+/* --- Toggle interaction --- */
+Toggle:hover {
+    text-style: bold;
+}

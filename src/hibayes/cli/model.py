@@ -6,17 +6,18 @@ from ..platform import configure_computation_platform
 from ..ui import ModellingDisplay
 
 
-def run_model(args):
+def run_model(args, display=None):
     config = AnalysisConfig.from_yaml(args.config)
 
     # Load analysis state first to get display stats
     analysis_state = AnalysisState.load(path=pathlib.Path(args.analysis_state))
 
-    display = ModellingDisplay(
-        initial_stats=analysis_state.display_stats
-        if analysis_state.display_stats
-        else None
-    )
+    if display is None:
+        display = ModellingDisplay(
+            initial_stats=analysis_state.display_stats
+            if analysis_state.display_stats
+            else None
+        )
     out = pathlib.Path(args.out)
 
     configure_computation_platform(
@@ -67,9 +68,20 @@ def main():
     )
     parser.set_defaults(frequent_save=True)
 
-    args = parser.parse_args()
+    parser.add_argument(
+        "--no-tui",
+        dest="use_tui",
+        action="store_false",
+        help="Use classic Rich display instead of interactive TUI",
+    )
+    parser.set_defaults(use_tui=True)
 
-    run_model(args)
+    args = parser.parse_args()
+    if args.use_tui:
+        from ..ui.textual.app import run_with_tui
+        run_with_tui(run_model, args)
+    else:
+        run_model(args)
 
 
 if __name__ == "__main__":

@@ -148,6 +148,12 @@ class ModellingDisplay:
         self.chain_method = chain_method
         self.num_chains = num_chains
 
+    def set_active_model(self, model_name: str) -> None:
+        pass
+
+    def show_inference_summary(self, summary: dict) -> None:
+        pass
+
     def update_logs(self, log_entry):
         """Callback for LogCaptureHandler to update logs panel."""
         timestamped_entry = (
@@ -339,7 +345,7 @@ class ModellingDisplay:
 
         return user_input
 
-    def add_check(self, check_name: str, result: str) -> None:
+    def add_check(self, check_name: str, result: str, details: dict | None = None) -> None:
         """Add a check result to the display."""
         # Update stats
         if result == "pass":
@@ -368,6 +374,16 @@ class ModellingDisplay:
             box=box.ROUNDED,
         )
         self.layout["checks"].update(check_panel)
+
+    def add_communicate_result(
+        self, name: str, result: str, details: dict | None = None
+    ) -> None:
+        """Record a communicate result (no-op in Rich display, details logged only)."""
+        self.logger.debug(f"Communicate {name}: {result}")
+
+    def update_body_content(self, content) -> None:
+        """Replace the body area with the given Rich renderable."""
+        self.layout["body"].update(content)
 
     def get_all_logs(self) -> List[str]:
         """Get all captured logs."""
