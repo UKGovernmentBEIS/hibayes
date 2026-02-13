@@ -1,12 +1,14 @@
 import argparse
 import pathlib
 
-from ..analysis import AnalysisConfig, communicate, load_data, model, process_data
-from ..platform import configure_computation_platform
-from ..ui import ModellingDisplay
+from . import setup_platform
 
 
 def run_full(args):
+    from ..analysis import AnalysisConfig, communicate, load_data, model, process_data
+    from ..platform import configure_computation_platform
+    from ..ui import ModellingDisplay
+
     config = AnalysisConfig.from_yaml(args.config)
     display = ModellingDisplay()
     out = pathlib.Path(args.out)
@@ -78,4 +80,5 @@ def main():
     parser.set_defaults(frequent_save=True)
 
     args = parser.parse_args()
+    setup_platform(args.config)
     run_full(args)

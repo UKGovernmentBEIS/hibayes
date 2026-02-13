@@ -49,11 +49,12 @@ class PlatformConfig:
                 self.num_devices = os.cpu_count()
                 numpyro.set_host_device_count(self.num_devices)
             elif self.device_type == "gpu":
-                # Set CPU device count BEFORE checking for GPUs
-                # This ensures if we fall back to CPU, the device count is already configured
-                cpu_count = os.cpu_count()
-                numpyro.set_host_device_count(cpu_count)
+                # Default to vectorized on GPU — vmap on a single GPU is more
+                # efficient than parallel (pmap) which needs multiple GPUs.
+                if self.chain_method == "parallel":
+                    self.chain_method = "vectorized"
 
+                cpu_count = os.cpu_count()
                 try:
                     gpu_devices = jax.devices("gpu")
                     self.num_devices = len(gpu_devices) if gpu_devices else 0
@@ -62,7 +63,9 @@ class PlatformConfig:
                 except Exception:
                     # Fallback to CPU if GPU detection fails
                     logger.warning("No GPU devices found, falling back to CPU.")
+                    numpyro.set_host_device_count(cpu_count)
                     self.device_type = "cpu"
+                    self.chain_method = "parallel"
                     self.num_devices = cpu_count
             else:
                 raise ValueError(f"Unsupported device type: {self.device_type}")

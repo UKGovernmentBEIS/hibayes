@@ -1,12 +1,14 @@
 import argparse
 import pathlib
 
-from ..analysis import AnalysisConfig, AnalysisState, process_data
-from ..platform import configure_computation_platform
-from ..ui import ModellingDisplay
+from . import setup_platform
 
 
 def run_process(args):
+    from ..analysis import AnalysisConfig, AnalysisState, process_data
+    from ..platform import configure_computation_platform
+    from ..ui import ModellingDisplay
+
     config = AnalysisConfig.from_yaml(args.config)
 
     # Load from existing analysis state
@@ -57,6 +59,7 @@ def main():
         "--out", required=True, help="dir path to save the analysis state to."
     )
     args = parser.parse_args()
+    setup_platform(args.config)
     run_process(args)
 
 

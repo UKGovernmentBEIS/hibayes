@@ -1,11 +1,13 @@
 import argparse
 import pathlib
 
-from ..analysis import AnalysisConfig, load_data
-from ..ui import ModellingDisplay
+from . import setup_platform
 
 
 def run_load(args):
+    from ..analysis import AnalysisConfig, load_data
+    from ..ui import ModellingDisplay
+
     config = AnalysisConfig.from_yaml(args.config)
     display = ModellingDisplay()
     analysis_state = load_data(config=config.data_loader, display=display)
@@ -26,6 +28,7 @@ def main():
     )
 
     args = parser.parse_args()
+    setup_platform(args.config)
     run_load(args)
 
 

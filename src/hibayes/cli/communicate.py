@@ -1,11 +1,13 @@
 import argparse
 import pathlib
 
-from ..analysis import AnalysisConfig, AnalysisState, communicate
-from ..ui import ModellingDisplay
+from . import setup_platform
 
 
 def run_communicate(args):
+    from ..analysis import AnalysisConfig, AnalysisState, communicate
+    from ..ui import ModellingDisplay
+
     analysis_state = AnalysisState.load(path=pathlib.Path(args.analysis_state))
     config = AnalysisConfig.from_yaml(args.config)
 
@@ -60,7 +62,8 @@ def main():
     parser.set_defaults(frequent_save=True)
 
     args = parser.parse_args()
-    run_communicate(args)  # will save the results in the out dir.
+    setup_platform(args.config)
+    run_communicate(args)
 
 
 if __name__ == "__main__":
