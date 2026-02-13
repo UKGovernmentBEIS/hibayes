@@ -1,12 +1,14 @@
 import argparse
 import pathlib
 
-from ..analysis import AnalysisConfig, AnalysisState, model
-from ..platform import configure_computation_platform
-from ..ui import ModellingDisplay
+from . import setup_platform
 
 
 def run_model(args, display=None):
+    from ..analysis import AnalysisConfig, AnalysisState, model
+    from ..platform import configure_computation_platform
+    from ..ui import ModellingDisplay
+
     config = AnalysisConfig.from_yaml(args.config)
 
     # Load analysis state first to get display stats
@@ -77,6 +79,7 @@ def main():
     parser.set_defaults(use_tui=True)
 
     args = parser.parse_args()
+    setup_platform(args.config)
     if args.use_tui:
         from ..ui.textual.app import run_with_tui
         run_with_tui(run_model, args)

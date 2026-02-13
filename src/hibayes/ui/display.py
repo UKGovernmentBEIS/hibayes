@@ -6,9 +6,6 @@ from functools import partial
 from threading import Lock
 from typing import Any, Callable, Dict, List, Optional
 
-import jax
-import jax.numpy as jnp
-import numpyro
 from rich import box
 from rich.layout import Layout
 from rich.live import Live
@@ -462,6 +459,8 @@ def rich_progress_bar_factory(
     """Factory that builds a the rich progress bar decorator along
     with the `set_description` and `close_pbar` functions
     """
+    import jax
+    import jax.numpy as jnp
 
     if num_samples > 20:
         print_rate = int(num_samples / 20)
@@ -556,6 +555,10 @@ def patch_fori_collect_with_rich_display(modelling_display):
     Args:
         modelling_display: The ModellingDisplay instance to use for progress
     """
+    import jax
+    import jax.numpy as jnp
+    import numpyro
+
     # Save original fori_collect for restoration later if needed
     original_fori_collect = numpyro.util.fori_collect
 

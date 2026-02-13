@@ -1,11 +1,13 @@
 import argparse
 import pathlib
 
-from ..analysis import AnalysisConfig, AnalysisState, communicate
-from ..ui import ModellingDisplay
+from . import setup_platform
 
 
 def run_communicate(args, display=None):
+    from ..analysis import AnalysisConfig, AnalysisState, communicate
+    from ..ui import ModellingDisplay
+
     analysis_state = AnalysisState.load(path=pathlib.Path(args.analysis_state))
     config = AnalysisConfig.from_yaml(args.config)
 
@@ -69,6 +71,7 @@ def main():
     parser.set_defaults(use_tui=True)
 
     args = parser.parse_args()
+    setup_platform(args.config)
     if args.use_tui:
         from ..ui.textual.app import run_with_tui
         run_with_tui(run_communicate, args)

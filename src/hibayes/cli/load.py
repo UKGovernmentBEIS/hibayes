@@ -1,11 +1,13 @@
 import argparse
 import pathlib
 
-from ..analysis import AnalysisConfig, load_data
-from ..ui import ModellingDisplay
+from . import setup_platform
 
 
 def run_load(args, display=None):
+    from ..analysis import AnalysisConfig, load_data
+    from ..ui import ModellingDisplay
+
     config = AnalysisConfig.from_yaml(args.config)
     if display is None:
         display = ModellingDisplay()
@@ -35,6 +37,7 @@ def main():
     parser.set_defaults(use_tui=True)
 
     args = parser.parse_args()
+    setup_platform(args.config)
     if args.use_tui:
         from ..ui.textual.app import run_with_tui
         run_with_tui(run_load, args)
