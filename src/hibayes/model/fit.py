@@ -53,6 +53,10 @@ def fit(
         display.update_stat("Samples", cfg.samples)
         display.update_stat("Method", cfg.method)
         display.update_stat("Status", "Running")
+        display.set_fit_context(
+            chain_method=model_analysis_state.platform_config.chain_method,
+            num_chains=cfg.chains,
+        )
 
     try:
         mcmc.run(

@@ -135,11 +135,18 @@ class ModellingDisplay:
 
         self.modelling = False
         self.original_fori_collect = None
+        self.chain_method = "parallel"
+        self.num_chains = 1
 
     def setupt_for_modelling(self):
         """Patch numpyro's fori_collect to integrate with a Rich ModellingDisplay."""
         self.original_fori_collect = patch_fori_collect_with_rich_display(self)
         self.modelling = True
+
+    def set_fit_context(self, chain_method: str, num_chains: int):
+        """Set the chain method and number of chains for progress bar display."""
+        self.chain_method = chain_method
+        self.num_chains = num_chains
 
     def update_logs(self, log_entry):
         """Callback for LogCaptureHandler to update logs panel."""
@@ -384,8 +391,7 @@ class NumPyroRichProgress:
         self,
         display,
         num_samples=0,
-        chain_id=0,
-        num_chains=1,
+        info_label="Chain 0",
         description="Warming up",
     ):
         """
@@ -395,43 +401,31 @@ class NumPyroRichProgress:
             display: The ModellingDisplay instance to update
             description: The task description
             num_samples: Number of samples to run per chain
-            chain_id: The chain ID (for multi-chain runs)
-            num_chains: The number of chains
+            info_label: Label to display (e.g. "Chain 0" or "Chains 1-4 (vectorized)")
         """
         self.display = display
         self.num_samples = num_samples
-        self.num_chains = num_chains
-        self.chain_id = chain_id
+        self.info_label = info_label
         self.task_id = None
         self.description = description
 
         # Create task in the display
         self.task_id = self.display.add_task(
             description=self._process_description(description),
-            chain=self.chain_id,
+            chain=self.info_label,
             total=self.num_samples,
         )
 
-        # Statistics to track
-        # this can be tracked at the end - no need for real time
-        # self.display.update_stat("MCMC samples", 0)
-        # self.display.update_stat("Num divergents", 0)
-        # self.display.update_stat("Current phase", self.current_phase)
-        # self.display.update_stat("Chains", num_chains)
-
-        # # To keep track of iterations and stats
         self.current_iter = 0
-        # self.divergences = 0
 
     def update(self, advance=1, description="Warming up"):
         """Update the progress display"""
-        # Update counters
         self.current_iter += advance
 
         self.display.progress.update(
             self.task_id,
             description=self._process_description(description),
-            info=f"{self.chain_id + 1}/{self.num_chains}",
+            info=self.info_label,
             advance=advance,
             completed=min(self.current_iter, self.num_samples),
             total=self.num_samples,
@@ -465,13 +459,13 @@ def rich_progress_bar_factory(
     # lock serializes access to idx_counter since callbacks are multithreaded
     # this prevents races that assign multiple chains to a progress bar
     lock = Lock()
+
     for chain in range(num_chains):
         rich_bars[chain] = NumPyroRichProgress(
             display=display,
             description=description_fn(1),
             num_samples=num_samples,
-            chain_id=chain,
-            num_chains=num_chains,
+            info_label=f"{chain + 1}/{num_chains}",
         )
 
     def _update_pbar(increment, iter_num, chain):
@@ -490,7 +484,6 @@ def rich_progress_bar_factory(
         increment = int(increment)
         chain = int(chain)
         rich_bars[chain].update(increment, description="Completed")
-        # rich_bars[chain].close()
 
     def _update_progress_bar(iter_num, chain):
         """Updates tqdm progress bar of a JAX loop only if the iteration number is a multiple of the print_rate
@@ -641,11 +634,20 @@ def patch_fori_collect_with_rich_display(modelling_display):
             )(collection)
 
         else:
+            # Single chain or vectorized chains
+            chain_method = modelling_display.chain_method
+            num_actual_chains = modelling_display.num_chains
+
+            if chain_method == "vectorized" and num_actual_chains > 1:
+                info_label = f"Chains 1-{num_actual_chains} (vectorized)"
+            else:
+                info_label = "Chain 0"
+
             progbar = NumPyroRichProgress(
                 modelling_display,
                 description=description(1),
                 num_samples=upper,
-                chain_id=0,
+                info_label=info_label,
             )
 
             vals = (init_val, collection, jnp.asarray(start_idx), jnp.asarray(thinning))
