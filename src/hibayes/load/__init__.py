@@ -10,13 +10,12 @@ from .extractors import (
     token_extractor,
     tools_extractor,
 )
-from .load import LogProcessor, get_sample_df
+from .load import get_sample_df
 
 __all__ = [
     "DataLoaderConfig",
     "Extractor",
     "ExtractorConfig",
-    "LogProcessor",
     "base_extractor",
     "cyber_extractor",
     "extractor",

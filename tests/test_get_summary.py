@@ -146,6 +146,28 @@ class TestGetSummary:
         assert "test_var2" in summary.index
 
 
+class TestGetSummaryRoundtrip:
+    """Tests that get_summary survives a save/load roundtrip."""
+
+    def test_summary_survives_save_load(self, tmp_path):
+        """After save+load, get_summary should return a DataFrame, not a string."""
+        state = create_model_analysis_state()
+
+        # Populate the cached summary
+        summary_before = state.get_summary()
+        assert isinstance(summary_before, pd.DataFrame)
+
+        # Save and reload
+        state.save(tmp_path)
+        loaded = ModelAnalysisState.load(tmp_path)
+
+        summary_after = loaded.get_summary()
+        assert isinstance(summary_after, pd.DataFrame), (
+            f"Expected DataFrame after roundtrip, got {type(summary_after)}"
+        )
+        pd.testing.assert_frame_equal(summary_before, summary_after)
+
+
 class TestGetSummaryIntegration:
     """Integration tests for get_summary with checkers workflow."""
 

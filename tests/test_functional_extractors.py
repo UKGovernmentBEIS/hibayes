@@ -363,10 +363,9 @@ def test_extractor_returns_non_dict():
         my_extractor(sample, log)
 
 
-def test_functional_extractors_with_logprocessor():
-    """Test that functional extractors work with LogProcessor."""
+def test_functional_extractors_with_config():
+    """Test that functional extractors are correctly resolved by DataLoaderConfig."""
     from hibayes.load.configs.config import DataLoaderConfig
-    from hibayes.load.load import LogProcessor
 
     # Create config with string references to extractors
     config = DataLoaderConfig.from_dict(
@@ -376,14 +375,12 @@ def test_functional_extractors_with_logprocessor():
         }
     )
 
-    processor = LogProcessor(config)
-    assert len(processor.extractors) == 2
+    assert len(config.enabled_extractors) == 2
 
 
-def test_mixed_extractors_with_logprocessor():
-    """Test that LogProcessor can handle parameterized extractors."""
+def test_mixed_extractors_with_config():
+    """Test that DataLoaderConfig handles parameterized extractors."""
     from hibayes.load.configs.config import DataLoaderConfig
-    from hibayes.load.load import LogProcessor
 
     # Create config with parameterized extractors
     config = DataLoaderConfig.from_dict(
@@ -399,5 +396,4 @@ def test_mixed_extractors_with_logprocessor():
         }
     )
 
-    processor = LogProcessor(config)
-    assert len(processor.extractors) == 3
+    assert len(config.enabled_extractors) == 3

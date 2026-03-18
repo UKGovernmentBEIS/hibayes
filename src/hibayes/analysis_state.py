@@ -10,7 +10,7 @@ import dill as pickle  # type: ignore # dill is used to pickle numpyro models as
 import matplotlib.pyplot as plt
 import pandas as pd
 from arviz import InferenceData
-from xarray import Dataset
+from xarray import Dataset, open_dataset
 
 import arviz as az
 
@@ -443,6 +443,16 @@ class ModelAnalysisState:
             diagnostics = _load_json(path / "diagnostics" / "diagnostics.json")
         elif (path / "diagnostics.json").exists():  # For backward compatibility
             diagnostics = _load_json(path / "diagnostics.json")
+
+        if diagnostics is not None:
+            diag_dir = path / "diagnostics"
+            for name in list(diagnostics.keys()):
+                csv_path = diag_dir / f"inference_data_{name}.csv"
+                nc_path = diag_dir / f"inference_data_{name}.nc"
+                if csv_path.exists():
+                    diagnostics[name] = pd.read_csv(csv_path, index_col=0)
+                elif nc_path.exists():
+                    diagnostics[name] = open_dataset(nc_path)
 
         inference_data = None
         if (path / "inference_data.nc").exists():
