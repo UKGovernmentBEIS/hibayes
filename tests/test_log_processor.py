@@ -1,6 +1,5 @@
 import datetime
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -28,12 +27,11 @@ from hibayes.load import (
 )
 from hibayes.load.configs.config import DataLoaderConfig
 from hibayes.load.load import (
-    LogProcessor,
+    _apply_cutoff,
+    _apply_extractors,
     get_file_list,
     get_sample_df,
     is_after_timestamp,
-    process_eval_logs_parallel,
-    row_generator,
 )
 
 
@@ -212,23 +210,6 @@ def test_dataloaderconfig_cache_path_no_warning(caplog):
     assert cfg.cache_path == "/path/to/cache.jsonl"
 
 
-def test_processor_setup(dl_cfg):
-    proc = LogProcessor(dl_cfg)
-    # With the new functional extractors, the config uses functional extractors by default
-    # Check that we have 3 extractors (base, tools, tokens)
-    assert len(proc.extractors) == 3
-
-
-def test_processor_process_sample(eval_log, log_info, dl_cfg):
-    proc = LogProcessor(dl_cfg)
-    with patch(
-        "hibayes.load.load.read_eval_log_sample", return_value=eval_log.samples[0]
-    ):
-        row = proc.process_sample(eval_log.samples[0], eval_log, log_info)
-    assert row["tools"] == ["grep"]
-    assert row["score"] == 0.75
-
-
 def test_processor_unknown_extractor(tmp_path: Path):
     # This should raise an error when trying to get a non-existent extractor from registry
     with pytest.raises(KeyError, match="No registered does-not-exist found"):
@@ -238,57 +219,6 @@ def test_processor_unknown_extractor(tmp_path: Path):
                 "paths": {"files_to_process": [str(tmp_path)]},
             }
         )
-
-
-def test_processor_error_capture(eval_log, log_info):
-    # Test error capture with a mock that will fail
-    cfg = DataLoaderConfig.from_dict(
-        {
-            "extractors": {"enabled": ["base_extractor"]},
-            "paths": {"files_to_process": ["/logs"]},
-        }
-    )
-    proc = LogProcessor(cfg)
-
-    # Mock an extractor to fail
-    def failing_extractor(sample, eval_log):
-        raise RuntimeError("bang")
-
-    failing_extractor.__name__ = "failing_extractor"
-    proc.extractors.append(failing_extractor)
-
-    with patch(
-        "hibayes.load.load.read_eval_log_sample", return_value=eval_log.samples[0]
-    ):
-        row = proc.process_sample(eval_log.samples[0], eval_log, log_info)
-    assert "processing_errors" in row
-
-
-def test_processor_with_multiple_custom_extractors(eval_log, log_info):
-    """Test processor with multiple extractors."""
-    # With registry pattern, use multiple registered extractors
-    config = DataLoaderConfig.from_dict(
-        {
-            "extractors": {
-                "enabled": ["base_extractor", "token_extractor", "tools_extractor"]
-            },
-            "paths": {"files_to_process": ["test_dir"]},
-        }
-    )
-
-    proc = LogProcessor(config)
-
-    assert len(proc.extractors) == 3
-
-    with patch(
-        "hibayes.load.load.read_eval_log_sample", return_value=eval_log.samples[0]
-    ):
-        row = proc.process_sample(eval_log.samples[0], eval_log, log_info)
-
-    # Check that extractors produced expected fields
-    assert "score" in row  # From base_extractor
-    assert "total_tokens" in row  # From token_extractor
-    assert "tools" in row  # From tools_extractor
 
 
 def test_is_after_timestamp(eval_log):
@@ -317,41 +247,6 @@ def test_get_file_list_empty():
     assert get_file_list([]) == []
 
 
-def test_row_generator_flow(dl_cfg):
-    proc = LogProcessor(dl_cfg)
-    with (
-        patch("hibayes.load.load.list_eval_logs", return_value=["foobar"]),
-        patch(
-            "hibayes.load.load.process_eval_logs_parallel",
-            return_value=iter([{"score": 0.75, "model": "gpt‑4o"}]),
-        ),
-    ):
-        rows = list(row_generator(processor=proc, files_to_process=["/fake"]))
-    assert rows[0]["score"] == 0.75
-
-
-def test_row_generator_empty_validation(dl_cfg):
-    proc = LogProcessor(dl_cfg)
-    with pytest.raises(ValueError):
-        next(row_generator(processor=proc, files_to_process=[]))
-
-
-def test_row_generator_s3_path(dl_cfg):
-    proc = LogProcessor(dl_cfg)
-    with patch("hibayes.load.load.list_eval_logs", return_value=[]):
-        list(row_generator(processor=proc, files_to_process=["s3://bucket/key"]))
-
-
-def test_row_generator_nonexistent_path(dl_cfg):
-    proc = LogProcessor(dl_cfg)
-    with (
-        patch("os.path.exists", return_value=False),
-        patch("hibayes.load.load.list_eval_logs", return_value=[]),
-    ):
-        rows = list(row_generator(processor=proc, files_to_process=["/nope"]))
-    assert rows == []
-
-
 def test_get_sample_df_from_path_cached(tmp_path: Path, dl_cfg):
     cached = tmp_path / "cached.jsonl"
     cached.write_text("{score: 0.9}\n")
@@ -363,85 +258,137 @@ def test_get_sample_df_from_path_cached(tmp_path: Path, dl_cfg):
     assert df.iloc[0]["score"] == 0.9
 
 
-def test_process_eval_logs_parallel(eval_sample, eval_log):
-    info = MagicMock(spec=EvalLogInfo)
-    with (
-        patch("hibayes.load.load.read_eval_log", return_value=eval_log),
-        patch("hibayes.load.load.read_eval_log_sample", return_value=eval_sample),
-    ):
-        config = DataLoaderConfig.from_dict(
-            {
-                "extractors": {"enabled": ["base_extractor"]},
-                "paths": {"files_to_process": ["/"]},
-            }
-        )
-        proc = LogProcessor(config)
-        rows = list(
-            process_eval_logs_parallel(eval_logs=[info], processor=proc, cutoff=None)
-        )
-    assert rows[0]["score"] == 0.75
+def test_apply_cutoff(eval_log):
+    """Test _apply_cutoff filters logs by completed_at timestamp."""
+    df = pd.DataFrame(
+        {
+            "log": ["/path/log1.eval", "/path/log1.eval", "/path/log2.eval"],
+            "id": ["s1", "s2", "s3"],
+            "epoch": [1, 1, 1],
+        }
+    )
+
+    # log1 passes cutoff (before May 2024), log2 does not
+    log1_header = MagicMock(spec=EvalLog)
+    log1_header.stats = MagicMock()
+    log1_header.stats.completed_at = "2024-05-01T12:34:56+00:00"
+
+    log2_header = MagicMock(spec=EvalLog)
+    log2_header.stats = MagicMock()
+    log2_header.stats.completed_at = "2024-03-01T12:34:56+00:00"
+
+    def mock_read(path, header_only=False):
+        if path == "/path/log1.eval":
+            return log1_header
+        return log2_header
+
+    cutoff = datetime.datetime(2024, 4, 1, tzinfo=pytz.UTC)
+    with patch("hibayes.load.load.read_eval_log", side_effect=mock_read):
+        result = _apply_cutoff(df, cutoff)
+
+    assert len(result) == 2
+    assert list(result["log"]) == ["/path/log1.eval", "/path/log1.eval"]
 
 
-def test_end_to_end_pipeline(tmp_path: Path, eval_sample, eval_log, log_info, dl_cfg):
+def test_apply_extractors(eval_sample, eval_log):
+    """Test _apply_extractors applies extractors to samples from bulk log reads."""
+    df = pd.DataFrame(
+        {
+            "log": ["/path/log1.eval"],
+            "id": [eval_sample.id],
+            "epoch": [eval_sample.epoch],
+        }
+    )
+
+    def mock_extractor(sample, log):
+        return {"custom_field": "custom_value", "score": 0.75}
+
+    with patch("hibayes.load.load.read_eval_log", return_value=eval_log):
+        result = _apply_extractors(df, [mock_extractor])
+
+    assert "custom_field" in result.columns
+    assert result.iloc[0]["custom_field"] == "custom_value"
+    assert result.iloc[0]["score"] == 0.75
+
+
+def test_apply_extractors_error_handling(eval_sample, eval_log):
+    """Test that _apply_extractors handles extractor errors gracefully."""
+    df = pd.DataFrame(
+        {
+            "log": ["/path/log1.eval"],
+            "id": [eval_sample.id],
+            "epoch": [eval_sample.epoch],
+        }
+    )
+
+    def failing_extractor(sample, log):
+        raise RuntimeError("bang")
+
+    failing_extractor.__name__ = "failing_extractor"
+
+    def good_extractor(sample, log):
+        return {"good_field": "ok"}
+
+    with patch("hibayes.load.load.read_eval_log", return_value=eval_log):
+        result = _apply_extractors(df, [failing_extractor, good_extractor])
+
+    # Good extractor's data should still be present
+    assert result.iloc[0]["good_field"] == "ok"
+
+
+def test_end_to_end_pipeline(tmp_path: Path, eval_sample, eval_log, dl_cfg):
+    """Test end-to-end pipeline using samples_df + _apply_extractors."""
+    # Mock samples_df to return a base DataFrame
+    base_df = pd.DataFrame(
+        {
+            "id": [eval_sample.id],
+            "epoch": [eval_sample.epoch],
+            "log": ["/fake/log.eval"],
+            "model": ["gpt‑4o"],
+        }
+    )
+
     with (
-        patch("hibayes.load.load.list_eval_logs", return_value=[log_info]),
+        patch("hibayes.load.load.samples_df", return_value=base_df),
         patch("hibayes.load.load.read_eval_log", return_value=eval_log),
-        patch("hibayes.load.load.read_eval_log_sample", return_value=eval_sample),
-        patch("os.path.exists", return_value=True),
     ):
         df = get_sample_df(config=dl_cfg)
-    assert len(df) == 1 and df.loc[0, "score"] == 0.75
+
+    assert len(df) == 1
+    # base_extractor should have added score
+    assert "score" in df.columns
+    assert df.iloc[0]["score"] == 0.75
 
 
-def test_processor_with_functional_extractors(eval_log, log_info):
-    """Test processor with functional extractors."""
-    # Use string references to extractors
-    config = DataLoaderConfig.from_dict(
-        {
-            "extractors": {"enabled": ["base_extractor", "token_extractor"]},
-            "paths": {"files_to_process": ["test_dir"]},
-        }
+def test_end_to_end_with_fixture_and_custom_extractor():
+    """Test full pipeline against real fixture with both built-in and custom extractors."""
+    from hibayes.load import extractor
+
+    fixture_path = str(Path(__file__).parent / "fixtures" / "minimal_test.eval")
+
+    @extractor
+    def task_label_extractor():
+        def extract(sample, eval_log):
+            return {"task_label": f"{eval_log.eval.task}_{sample.id}"}
+
+        return extract
+
+    config = DataLoaderConfig(
+        files_to_process=[fixture_path],
+        enabled_extractors=[base_extractor(), task_label_extractor()],
     )
+    df = get_sample_df(config=config)
 
-    proc = LogProcessor(config)
-    assert len(proc.extractors) == 2
-
-    with patch(
-        "hibayes.load.load.read_eval_log_sample", return_value=eval_log.samples[0]
-    ):
-        row = proc.process_sample(eval_log.samples[0], eval_log, log_info)
-
-    # Should have results from both extractors
-    assert "score" in row  # From base_extractor
-    assert "total_tokens" in row  # From token_extractor
-
-
-def test_processor_with_mixed_extractors(eval_log, log_info):
-    """Test processor with parameterized extractors."""
-    # Use extractors with parameters
-    config = DataLoaderConfig.from_dict(
-        {
-            "extractors": {
-                "enabled": [
-                    "base_extractor",
-                    {"message_count_extractor": {"include_system": False}},
-                ]
-            },
-            "paths": {"files_to_process": ["test_dir"]},
-        }
-    )
-
-    proc = LogProcessor(config)
-    assert len(proc.extractors) == 2
-
-    with patch(
-        "hibayes.load.load.read_eval_log_sample", return_value=eval_log.samples[0]
-    ):
-        row = proc.process_sample(eval_log.samples[0], eval_log, log_info)
-
-    # Should have results from both extractors
-    assert "score" in row  # From base_extractor
-    assert "total_messages" in row  # From message_count_extractor
+    assert len(df) == 2
+    # Built-in extractor columns
+    assert "score" in df.columns
+    assert "model" in df.columns
+    assert set(df["model"]) == {"model"}  # base_extractor strips "mockllm/"
+    # Custom extractor columns
+    assert "task_label" in df.columns
+    assert set(df["task_label"]) == {"minimal_task_q1", "minimal_task_q2"}
+    # samples_df base columns should also be present
+    assert "log" in df.columns
 
 
 # Tests for _load_extracted_data function
