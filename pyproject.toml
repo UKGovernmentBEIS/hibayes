@@ -12,19 +12,20 @@ dependencies = [
     "matplotlib>=3.10.1",
     "pandas>=2.2.3",
     "tqdm>=4.67.1",
-    "inspect-ai>=0.3.95",
+    "inspect-ai>=0.3.199",
     "jax>=0.5.3",
     "numpyro>=0.18.0",
-    "arviz>=0.21.0",
+    "arviz>=0.21.0,<1.0.0",
     "rich>=13.3.3,<14.0.0", # https://github.com/Textualize/rich/issues/3682
     "textual>=0.86.2",
     "plotext>=5.3.2",
     "pyarrow>=20.0.0",
-    "fastparquet>=2024.11.0",
+    "fastparquet>=2024.11.0,<2026.3.0",
     "dvc>=3.59.1",
     "dvc-s3>=3.2.2",
     "dill>=0.4.0",
     "krippendorff>=0.8.1",
+    "pytz>=2024.1",
 ]
 
 [tool.hatch.metadata]

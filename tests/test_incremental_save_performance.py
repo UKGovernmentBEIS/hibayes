@@ -374,7 +374,7 @@ class TestIncrementalSaveCorrectness:
         analysis_state.save(out_path, incremental=False)
 
         model_dir = out_path / "models" / analysis_state.models[0].model_name
-        original_mtime = (model_dir / "diagnostics.json").stat().st_mtime
+        original_mtime = (model_dir / "diagnostics" / "diagnostics.json").stat().st_mtime
 
         # Add a new diagnostic
         analysis_state.models[0].add_diagnostic("new_metric", 42.0)
@@ -384,7 +384,7 @@ class TestIncrementalSaveCorrectness:
 
         # Incremental save
         analysis_state.save(out_path, incremental=True)
-        new_mtime = (model_dir / "diagnostics.json").stat().st_mtime
+        new_mtime = (model_dir / "diagnostics" / "diagnostics.json").stat().st_mtime
 
         # diagnostics should be rewritten
         assert new_mtime > original_mtime, "diagnostics.json should be rewritten on incremental save"
