@@ -11,6 +11,15 @@ HiBayesApp {
     max-height: 8;
 }
 
+/* --- Global loading progress panel --- */
+#global-progress-panel {
+    height: auto;
+    max-height: 6;
+}
+#global-progress-panel.hidden {
+    display: none;
+}
+
 /* --- Main body fills remaining space --- */
 #main-body {
     height: 1fr;

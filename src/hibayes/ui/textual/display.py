@@ -57,6 +57,12 @@ class TextualDisplay:
         self.stats: dict[str, Any] = default_stats
         self.start_time = time.time()
 
+        # Running average for processing speed (EMA)
+        self._last_speed_time = self.start_time
+        self._last_speed_samples = 0
+        self._ema_speed: float = 0.0  # samples/sec
+        self._ema_alpha: float = 0.3  # weight for new observations
+
         # For modelling / numpyro integration
         self.modelling = False
         self.original_fori_collect = None
@@ -121,6 +127,11 @@ class TextualDisplay:
 
     def _ensure_and_switch_model(self, model_name: str) -> None:
         from .widgets.model_selector import ModelDashboard
+
+        # Hide the global loading progress panel once model sections appear
+        global_panel = self._get_global_progress_panel()
+        if global_panel is not None:
+            global_panel.add_class("hidden")
 
         dashboard = self._app.query_one(ModelDashboard)
         section = dashboard.add_model_section(model_name)
@@ -206,13 +217,25 @@ class TextualDisplay:
         self._push_stats()
 
     def _push_stats(self) -> None:
-        # Recalculate processing speed if appropriate
+        # Recalculate processing speed as a running average (EMA)
         if not self.modelling and self.stats["Samples processed"] > 0:
             if not self._loaded_from_state:
-                elapsed = time.time() - self.start_time
-                if elapsed > 0:
+                now = time.time()
+                dt = now - self._last_speed_time
+                ds = self.stats["Samples processed"] - self._last_speed_samples
+                if dt > 0 and ds > 0:
+                    instant_speed = ds / dt
+                    if self._ema_speed == 0.0:
+                        self._ema_speed = instant_speed
+                    else:
+                        self._ema_speed = (
+                            self._ema_alpha * instant_speed
+                            + (1 - self._ema_alpha) * self._ema_speed
+                        )
+                    self._last_speed_time = now
+                    self._last_speed_samples = self.stats["Samples processed"]
                     self.stats["Processing speed"] = (
-                        f"{self.stats['Samples processed'] / elapsed:.1f} samples/sec"
+                        f"{self._ema_speed:.1f} samples/sec"
                     )
         try:
             self._app.call_from_thread(self._set_stats, dict(self.stats))
@@ -250,6 +273,14 @@ class TextualDisplay:
             pass
         return tid
 
+    def _get_global_progress_panel(self):
+        """Return the global ProgressPanel (used during loading, before models exist)."""
+        from .widgets.progress_panel import ProgressPanel
+        try:
+            return self._app.query_one("#global-progress-panel", ProgressPanel)
+        except Exception:
+            return None
+
     def _add_task_widget(
         self,
         key: str,
@@ -260,6 +291,11 @@ class TextualDisplay:
     ) -> None:
         section = self._get_current_section()
         if section is None:
+            # No model section yet (e.g. during sample loading) — use global panel
+            panel = self._get_global_progress_panel()
+            if panel is None:
+                return
+            panel.add_task(key, description, chain=chain, worker=worker, total=total)
             return
         # For __results__ section (CommsDetailView), no progress panel
         if not hasattr(section, "progress_panel"):
@@ -287,9 +323,13 @@ class TextualDisplay:
         model_name: str | None = None,
     ) -> None:
         section = self._get_section_for_model(model_name) if model_name else self._get_current_section()
-        if section is None or not hasattr(section, "progress_panel"):
+        if section is not None and hasattr(section, "progress_panel"):
+            section.progress_panel.update_task(key, advance=advance, new_description=new_desc, **kwargs)
             return
-        section.progress_panel.update_task(key, advance=advance, new_description=new_desc, **kwargs)
+        # Fall back to global progress panel (loading phase)
+        panel = self._get_global_progress_panel()
+        if panel is not None:
+            panel.update_task(key, advance=advance, new_description=new_desc, **kwargs)
 
     def update_task_description(self, description: str, new_description: str) -> None:
         tid = self._task_ids.get(description)

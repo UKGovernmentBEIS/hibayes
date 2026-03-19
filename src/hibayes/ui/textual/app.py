@@ -14,6 +14,7 @@ from .widgets.footer import AppFooter
 from .widgets.header import AppHeader
 from .widgets.logs_panel import LogsPanel
 from .widgets.model_selector import ModelDashboard
+from .widgets.progress_panel import ProgressPanel
 from .widgets.stats_panel import StatsPanel
 
 
@@ -39,6 +40,7 @@ class HiBayesApp(App):
     def compose(self) -> ComposeResult:
         yield AppHeader()
         yield LogsPanel(id="logs-panel")
+        yield ProgressPanel(id="global-progress-panel")
         with Horizontal(id="main-body"):
             yield ModelDashboard(id="model-dashboard")
             yield StatsPanel(id="stats-panel")

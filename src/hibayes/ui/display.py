@@ -127,6 +127,13 @@ class ModellingDisplay:
         self.stats = default_stats
 
         self.start_time = time.time()
+
+        # Running average for processing speed (EMA)
+        self._last_speed_time = self.start_time
+        self._last_speed_samples = 0
+        self._ema_speed: float = 0.0  # samples/sec
+        self._ema_alpha: float = 0.3  # weight for new observations
+
         self.live = None
         self._task_ids = {}
 
@@ -241,15 +248,25 @@ class ModellingDisplay:
         if not self.live:
             return
 
-        # Calculate processing speed if loading data
-        # Only calculate if we're actively processing (not loading from a saved state)
+        # Calculate processing speed as a running average (EMA)
         if not self.modelling and self.stats["Samples processed"] > 0:
             if not (hasattr(self, "_loaded_from_state") and self._loaded_from_state):
-                elapsed = time.time() - self.start_time
-                if elapsed > 0:
-                    samples_per_sec = self.stats["Samples processed"] / elapsed
+                now = time.time()
+                dt = now - self._last_speed_time
+                ds = self.stats["Samples processed"] - self._last_speed_samples
+                if dt > 0 and ds > 0:
+                    instant_speed = ds / dt
+                    if self._ema_speed == 0.0:
+                        self._ema_speed = instant_speed
+                    else:
+                        self._ema_speed = (
+                            self._ema_alpha * instant_speed
+                            + (1 - self._ema_alpha) * self._ema_speed
+                        )
+                    self._last_speed_time = now
+                    self._last_speed_samples = self.stats["Samples processed"]
                     self.stats["Processing speed"] = (
-                        f"{samples_per_sec:.1f} samples/sec"
+                        f"{self._ema_speed:.1f} samples/sec"
                     )
 
         # Rebuild the table

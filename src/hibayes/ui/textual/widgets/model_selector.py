@@ -9,6 +9,7 @@ from textual.containers import HorizontalScroll, Vertical
 from textual.widgets import Button, ContentSwitcher
 
 from .model_section import ModelSection
+from .progress_panel import ProgressPanel
 
 
 def _safe_id(name: str) -> str:
@@ -36,8 +37,16 @@ class ModelSelectorBar(HorizontalScroll):
         min-width: 16;
         width: auto;
         height: 3;
+        border: solid $primary-background-lighten-2;
+        background: $surface;
+        color: $text-muted;
+    }
+    ModelSelectorBar > Button:hover {
+        border: solid $primary-lighten-2;
+        color: $text;
     }
     ModelSelectorBar > Button.-active {
+        border: solid $primary;
         background: $primary;
         color: $text;
         text-style: bold;
