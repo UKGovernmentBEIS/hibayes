@@ -83,6 +83,21 @@ def configure_computation_platform(
                     f"Note: Could not update host device count (may already be set): {e}"
                 )
 
+            # Warn if CPU requested but JAX defaulted to GPU (e.g. numpyro[cuda]
+            # installed and setup_platform() was not called before importing hibayes)
+            default_backend = jax.default_backend()
+            if default_backend != "cpu":
+                display.update_logs(
+                    f"WARNING: CPU mode requested but JAX default backend is "
+                    f"'{default_backend}'. Parallel chains will run sequentially. "
+                    f"If using the CLI, this should not happen — please report a bug. "
+                    f"For programmatic use, call setup_platform() before importing "
+                    f"hibayes:\n"
+                    f"    from hibayes.cli import setup_platform\n"
+                    f"    setup_platform('config.yaml')  "
+                    f"# or: setup_platform(device_type='cpu')"
+                )
+
     except Exception as e:
         display.update_logs(
             f"Failed to configure {platform_config.device_type.upper()}: {str(e)}"

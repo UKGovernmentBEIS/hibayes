@@ -6,9 +6,6 @@ from functools import partial
 from threading import Lock
 from typing import Any, Callable, Dict, List, Optional
 
-import jax
-import jax.numpy as jnp
-import numpyro
 from rich import box
 from rich.layout import Layout
 from rich.live import Live
@@ -130,16 +127,36 @@ class ModellingDisplay:
         self.stats = default_stats
 
         self.start_time = time.time()
+
+        # Running average for processing speed (EMA)
+        self._last_speed_time = self.start_time
+        self._last_speed_samples = 0
+        self._ema_speed: float = 0.0  # samples/sec
+        self._ema_alpha: float = 0.3  # weight for new observations
+
         self.live = None
         self._task_ids = {}
 
         self.modelling = False
         self.original_fori_collect = None
+        self.chain_method = "parallel"
+        self.num_chains = 1
 
     def setupt_for_modelling(self):
         """Patch numpyro's fori_collect to integrate with a Rich ModellingDisplay."""
         self.original_fori_collect = patch_fori_collect_with_rich_display(self)
         self.modelling = True
+
+    def set_fit_context(self, chain_method: str, num_chains: int):
+        """Set the chain method and number of chains for progress bar display."""
+        self.chain_method = chain_method
+        self.num_chains = num_chains
+
+    def set_active_model(self, model_name: str) -> None:
+        pass
+
+    def show_inference_summary(self, summary: dict) -> None:
+        pass
 
     def update_logs(self, log_entry):
         """Callback for LogCaptureHandler to update logs panel."""
@@ -231,15 +248,25 @@ class ModellingDisplay:
         if not self.live:
             return
 
-        # Calculate processing speed if loading data
-        # Only calculate if we're actively processing (not loading from a saved state)
+        # Calculate processing speed as a running average (EMA)
         if not self.modelling and self.stats["Samples processed"] > 0:
             if not (hasattr(self, "_loaded_from_state") and self._loaded_from_state):
-                elapsed = time.time() - self.start_time
-                if elapsed > 0:
-                    samples_per_sec = self.stats["Samples processed"] / elapsed
+                now = time.time()
+                dt = now - self._last_speed_time
+                ds = self.stats["Samples processed"] - self._last_speed_samples
+                if dt > 0 and ds > 0:
+                    instant_speed = ds / dt
+                    if self._ema_speed == 0.0:
+                        self._ema_speed = instant_speed
+                    else:
+                        self._ema_speed = (
+                            self._ema_alpha * instant_speed
+                            + (1 - self._ema_alpha) * self._ema_speed
+                        )
+                    self._last_speed_time = now
+                    self._last_speed_samples = self.stats["Samples processed"]
                     self.stats["Processing speed"] = (
-                        f"{samples_per_sec:.1f} samples/sec"
+                        f"{self._ema_speed:.1f} samples/sec"
                     )
 
         # Rebuild the table
@@ -332,7 +359,7 @@ class ModellingDisplay:
 
         return user_input
 
-    def add_check(self, check_name: str, result: str) -> None:
+    def add_check(self, check_name: str, result: str, details: dict | None = None) -> None:
         """Add a check result to the display."""
         # Update stats
         if result == "pass":
@@ -362,6 +389,16 @@ class ModellingDisplay:
         )
         self.layout["checks"].update(check_panel)
 
+    def add_communicate_result(
+        self, name: str, result: str, details: dict | None = None
+    ) -> None:
+        """Record a communicate result (no-op in Rich display, details logged only)."""
+        self.logger.debug(f"Communicate {name}: {result}")
+
+    def update_body_content(self, content) -> None:
+        """Replace the body area with the given Rich renderable."""
+        self.layout["body"].update(content)
+
     def get_all_logs(self) -> List[str]:
         """Get all captured logs."""
         return self.all_logs.copy()
@@ -384,8 +421,7 @@ class NumPyroRichProgress:
         self,
         display,
         num_samples=0,
-        chain_id=0,
-        num_chains=1,
+        info_label="Chain 0",
         description="Warming up",
     ):
         """
@@ -395,43 +431,31 @@ class NumPyroRichProgress:
             display: The ModellingDisplay instance to update
             description: The task description
             num_samples: Number of samples to run per chain
-            chain_id: The chain ID (for multi-chain runs)
-            num_chains: The number of chains
+            info_label: Label to display (e.g. "Chain 0" or "Chains 1-4 (vectorized)")
         """
         self.display = display
         self.num_samples = num_samples
-        self.num_chains = num_chains
-        self.chain_id = chain_id
+        self.info_label = info_label
         self.task_id = None
         self.description = description
 
         # Create task in the display
         self.task_id = self.display.add_task(
             description=self._process_description(description),
-            chain=self.chain_id,
+            chain=self.info_label,
             total=self.num_samples,
         )
 
-        # Statistics to track
-        # this can be tracked at the end - no need for real time
-        # self.display.update_stat("MCMC samples", 0)
-        # self.display.update_stat("Num divergents", 0)
-        # self.display.update_stat("Current phase", self.current_phase)
-        # self.display.update_stat("Chains", num_chains)
-
-        # # To keep track of iterations and stats
         self.current_iter = 0
-        # self.divergences = 0
 
     def update(self, advance=1, description="Warming up"):
         """Update the progress display"""
-        # Update counters
         self.current_iter += advance
 
         self.display.progress.update(
             self.task_id,
             description=self._process_description(description),
-            info=f"{self.chain_id + 1}/{self.num_chains}",
+            info=self.info_label,
             advance=advance,
             completed=min(self.current_iter, self.num_samples),
             total=self.num_samples,
@@ -452,6 +476,8 @@ def rich_progress_bar_factory(
     """Factory that builds a the rich progress bar decorator along
     with the `set_description` and `close_pbar` functions
     """
+    import jax
+    import jax.numpy as jnp
 
     if num_samples > 20:
         print_rate = int(num_samples / 20)
@@ -465,13 +491,13 @@ def rich_progress_bar_factory(
     # lock serializes access to idx_counter since callbacks are multithreaded
     # this prevents races that assign multiple chains to a progress bar
     lock = Lock()
+
     for chain in range(num_chains):
         rich_bars[chain] = NumPyroRichProgress(
             display=display,
             description=description_fn(1),
             num_samples=num_samples,
-            chain_id=chain,
-            num_chains=num_chains,
+            info_label=f"{chain + 1}/{num_chains}",
         )
 
     def _update_pbar(increment, iter_num, chain):
@@ -490,7 +516,6 @@ def rich_progress_bar_factory(
         increment = int(increment)
         chain = int(chain)
         rich_bars[chain].update(increment, description="Completed")
-        # rich_bars[chain].close()
 
     def _update_progress_bar(iter_num, chain):
         """Updates tqdm progress bar of a JAX loop only if the iteration number is a multiple of the print_rate
@@ -547,6 +572,10 @@ def patch_fori_collect_with_rich_display(modelling_display):
     Args:
         modelling_display: The ModellingDisplay instance to use for progress
     """
+    import jax
+    import jax.numpy as jnp
+    import numpyro
+
     # Save original fori_collect for restoration later if needed
     original_fori_collect = numpyro.util.fori_collect
 
@@ -641,11 +670,20 @@ def patch_fori_collect_with_rich_display(modelling_display):
             )(collection)
 
         else:
+            # Single chain or vectorized chains
+            chain_method = modelling_display.chain_method
+            num_actual_chains = modelling_display.num_chains
+
+            if chain_method == "vectorized" and num_actual_chains > 1:
+                info_label = f"Chains 1-{num_actual_chains} (vectorized)"
+            else:
+                info_label = "Chain 0"
+
             progbar = NumPyroRichProgress(
                 modelling_display,
                 description=description(1),
                 num_samples=upper,
-                chain_id=0,
+                info_label=info_label,
             )
 
             vals = (init_val, collection, jnp.asarray(start_idx), jnp.asarray(thinning))

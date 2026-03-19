@@ -8,7 +8,7 @@ from rich.table import Table
 from rich.text import Text
 
 from ...analysis_state import AnalysisState
-from ...ui import ModellingDisplay
+from ...ui import Display
 from .._communicate import CommunicateResult, communicate
 
 
@@ -27,7 +27,7 @@ def summary_table(
 
     def communicate(
         state: AnalysisState,
-        display: ModellingDisplay | None = None,
+        display: Display | None = None,
     ) -> Tuple[AnalysisState, CommunicateResult]:
         nonlocal vars
 
@@ -67,7 +67,7 @@ def summary_table(
                 rich_tbl = _df_to_rich_table(summary_df, round_to=round_to)
 
                 # Replace the entire body area with the table
-                display.layout["body"].update(rich_tbl)
+                display.update_body_content(rich_tbl)
 
         return state, "pass"
 

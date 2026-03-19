@@ -47,6 +47,12 @@ We provide built in methods for common workflows in AI evaluation such as stasti
 
 Ready to dive in? Check out our [Getting Started Guide](getting-started.qmd) for installation instructions and a tutorial.
 
+## See the UI in Action
+
+<p align="center">
+  <img src="figs/ui-demo.gif" width="70%" loop="infinite" />
+</p>
+
 ## Community & Support
 
 - 📖 Read the [paper](https://arxiv.org/abs/2505.05602) for theoretical background
