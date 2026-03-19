@@ -154,7 +154,7 @@ def get_sample_df(
     """
     # Set up display and log capture context at the start
     if display:
-        if not display.live:
+        if not display.is_live:
             display.start()
         display.update_header("Processing Logs")
         capture_context = display.capture_logs()
@@ -217,6 +217,6 @@ def get_sample_df(
         check_mixed_types(base_df)
 
         if display:
-            if display.live:
+            if display.is_live:
                 display.stop()
         return base_df
