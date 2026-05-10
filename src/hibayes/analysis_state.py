@@ -10,7 +10,7 @@ import dill as pickle  # type: ignore # dill is used to pickle numpyro models as
 import matplotlib.pyplot as plt
 import pandas as pd
 from arviz import InferenceData
-from xarray import Dataset, open_dataset
+from xarray import DataArray, Dataset, open_dataset
 
 import arviz as az
 
@@ -379,6 +379,12 @@ class ModelAnalysisState:
                 # az.loo, az.waic return ELPDData objects, which inherit from pd.Series
                 elif isinstance(obj, pd.DataFrame) or isinstance(obj, pd.Series):
                     obj.to_csv(path / "diagnostics" / f"inference_data_{name}.csv")
+                # xarray.DataArray (e.g. loo_i, pareto_k, waic_i): save as .csv
+                # so per-observation values are recoverable. See issue #77.
+                elif isinstance(obj, DataArray):
+                    obj.to_dataframe().to_csv(
+                        path / "diagnostics" / f"inference_data_{name}.csv"
+                    )
                 # if any xarray.Dataset objects, save as .nc
                 # az.summary returns pd.DataFrame or xarray.Dataset
                 elif isinstance(obj, Dataset):

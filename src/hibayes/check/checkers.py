@@ -423,6 +423,10 @@ def loo(
         state.add_diagnostic("elpd_loo", loo_res.elpd_loo)
         state.add_diagnostic("se_elpd_loo", loo_res.se)
         state.add_diagnostic("p_loo", loo_res.p_loo)
+        # Per-observation arrays so they survive CSV export (the ELPDData
+        # summary stringifies these xarray DataArrays). See issue #77.
+        state.add_diagnostic("loo_i", loo_res.loo_i)
+        state.add_diagnostic("pareto_k", loo_res.pareto_k)
 
         bad = int((loo_res.pareto_k.values > reff_threshold).sum())
         if bad == 0:
@@ -654,12 +658,16 @@ def waic(scale: str = "log") -> Checker:
         if "waic" in state.diagnostics:
             waic_res = state.diagnostics["waic"]
         else:
-            waic_res = az.waic(state.inference_data, scale=scale)
-        
+            waic_res = az.waic(state.inference_data, pointwise=True, scale=scale)
+
         state.add_diagnostic("waic", waic_res)
         state.add_diagnostic("elpd_waic", waic_res.elpd_waic)
         state.add_diagnostic("se_elpd_waic", waic_res.se)
         state.add_diagnostic("p_waic", waic_res.p_waic)
+        # Per-observation array so it survives CSV export (the ELPDData summary
+        # stringifies this xarray DataArray). See issue #77.
+        if "waic_i" in waic_res:
+            state.add_diagnostic("waic_i", waic_res.waic_i)
 
         if display:
             display.logger.info(
