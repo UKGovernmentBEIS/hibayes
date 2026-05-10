@@ -1,6 +1,7 @@
 # Changelog
 
 
+- (2026-05-10) Bugfix: `loo` and `waic` checkers now also save the per-observation arrays (`loo_i`, `pareto_k`, `waic_i`) as separate CSVs alongside the ELPDData summary, so the full pointwise values can be recovered after a HiBayes run instead of being stringified into the summary CSV (#77).
 - (2026-03-19) Textual TUI: Added interactive terminal UI with per-model dashboard, keyboard navigation, and display protocol abstraction (`--no-tui` falls back to Rich). Also fixed GPU/CPU platform initialisation and cleaned up progress bar handling.
 - (2026-03-18) Bugfix: Fixed `ModelAnalysisState.load()` not restoring DataFrame/Dataset diagnostics (e.g. summary) from saved CSV/NC files, causing `get_summary()` to return a string after reload.
 - (2026-03-18) Refactor: Replaced custom `LogProcessor` loading pipeline with `samples_df()` and bulk log reads. This removes `LogProcessor` class and `patch_inspect_loader.py`.
