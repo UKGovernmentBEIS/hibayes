@@ -1,0 +1,53 @@
+# Step 2: the same benchmark, now using the fact that both models answered the same items.
+data_loader:
+  paths:
+    files_to_process:
+      # One benchmark (DS-1000), both models. The two runs share the same 1000 items.
+      - ../../hibayes-usecases/data/gpt-4o/2025-02-15T14-56-27+00-00_DS-1000_RRnpSFPYQcZQPUYnX7Kmy2.eval
+      - ../../hibayes-usecases/data/claude-sonnet-3-5/2025-02-15T14-56-27+00-00_DS-1000_YKXJT8wZV9cEBLs9iWnt7h.eval
+  extractors:
+    enabled:
+      - base_extractor   # score (0/1), model, dataset, task (= sample id), epoch, ...
+
+data_process:
+  processors:
+    # No groupby: keep one row per (item, model) answer so the model can see the pairing.
+    - map_columns: {column_mapping: {task: item}}
+    - extract_features:
+        categorical_features: [model, item]
+        reference_categories: {model: gpt-4o}
+    - extract_observed_feature: {feature_name: score}
+
+model:
+  models:
+    # The step 1 model again, on the same rows, so the two fits can be
+    # compared directly (same likelihood as step 1, just not aggregated).
+    - name: accuracy_comparison
+      config: {tag: unpaired, item_column: null, fit: {seed: 0}}
+    # The default item_column: item adds a shared difficulty offset per item.
+    - name: accuracy_comparison
+      config: {tag: paired, fit: {seed: 0}}
+
+check:
+  checkers:
+    # One row per answer (0/1), so these plot outcome counts, not proportions.
+    - prior_predictive_plot: {interactive: false}
+    - r_hat
+    - divergences
+    - ess_bulk
+    - ess_tail
+    - bfmi
+    - loo
+    - waic
+    - posterior_predictive_plot: {interactive: false}
+    - agreement_check       # do the four agreement patterns match? (paired fit only)
+
+communicate:
+  path: ../custom_communicators.py
+  communicators:
+    - comparison_summary
+    - agreement_plot        # where the comparison information comes from
+    - item_difficulty_plot  # fitted spread of item difficulty (paired fit only)
+    - forest_plot: {vars: [accuracy_difference], combined: true, vertical_line: 0, best_model: false}
+    - summary_table: {vars: [baseline, difference, item_sigma, accuracy, accuracy_difference], best_model: false}
+    - model_comparison_plot: {ic: loo}

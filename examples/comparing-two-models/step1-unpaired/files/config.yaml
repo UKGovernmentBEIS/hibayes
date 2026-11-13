@@ -1,0 +1,51 @@
+# Step 1: the simplest comparison. Two accuracies, one per model.
+data_loader:
+  paths:
+    files_to_process:
+      # One benchmark (DS-1000), both models. The two runs share the same 1000 items.
+      - ../../hibayes-usecases/data/gpt-4o/2025-02-15T14-56-27+00-00_DS-1000_RRnpSFPYQcZQPUYnX7Kmy2.eval
+      - ../../hibayes-usecases/data/claude-sonnet-3-5/2025-02-15T14-56-27+00-00_DS-1000_YKXJT8wZV9cEBLs9iWnt7h.eval
+  extractors:
+    enabled:
+      - base_extractor   # score (0/1), model, dataset, task (= sample id), epoch, ...
+
+data_process:
+  processors:
+    # One row per model: n_correct out of n_total answers.
+    - groupby: {groupby_columns: [model]}
+    # gpt-4o is the reference (index 0); "difference" is Claude minus gpt-4o.
+    - extract_features:
+        categorical_features: [model]
+        continuous_features: [n_total]
+        reference_categories: {model: gpt-4o}
+    - extract_observed_feature: {feature_name: n_correct}
+
+model:
+  models:
+    # item_column: null drops the per-item term: every answer is treated as
+    # an independent coin flip whose chance depends only on the model.
+    - name: accuracy_comparison
+      config: {tag: unpaired, item_column: null, fit: {seed: 0}}
+
+check:
+  checkers:
+    - prior_predictive_plot: {plot_proportion: true, interactive: false}
+    - r_hat
+    - divergences
+    - ess_bulk
+    - ess_tail
+    - bfmi
+    # No loo/waic here: after groupby there are two rows, one binomial count
+    # per model. They still carry all 1000 answers each, but leave-one-out
+    # removes a whole row, i.e. one model's answers, which isn't a meaningful
+    # check. Step 2 fits this model to one row per answer, where LOO works.
+    - posterior_predictive_plot: {plot_proportion: true, interactive: false}
+
+communicate:
+  path: ../custom_communicators.py   # prior_plot lives in the example
+  communicators:
+    - comparison_summary
+    - prior_plot: {num_samples: 50000}  # what the priors imply on the accuracy scale
+    - forest_plot: {vars: [accuracy_difference], vertical_line: 0, best_model: false}
+    - forest_plot: {vars: [accuracy], best_model: false}
+    - summary_table: {vars: [baseline, difference, accuracy, accuracy_difference], best_model: false}

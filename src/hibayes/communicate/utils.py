@@ -52,3 +52,29 @@ def drop_not_present_vars(
     present_vars = [var for var in vars if var in inference_data.posterior.data_vars]
     dropped_vars = [var for var in vars if var not in present_vars]
     return present_vars, dropped_vars
+
+
+def format_probability(events) -> str:
+    """
+    Share of posterior draws where an event holds, as text.
+
+    With N draws the share can't resolve probabilities below about 1/N, so a
+    share of exactly 0 or 1 is reported as ``"< 0.001"`` or ``"> 0.999"``
+    (for N >= 1000; ``1/N`` otherwise) rather than as an impossible
+    certainty.
+
+    Args:
+        events: Boolean array, one entry per posterior draw.
+    """
+    import numpy as np
+
+    events = np.asarray(events)
+    if events.size == 0:
+        raise ValueError("format_probability needs at least one draw.")
+    p = float(events.mean())
+    floor = max(0.001, 1 / events.size)
+    if p == 0:
+        return f"< {floor:g}"
+    if p == 1:
+        return f"> {1 - floor:g}"
+    return f"{p:.3f}"

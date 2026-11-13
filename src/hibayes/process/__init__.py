@@ -4,6 +4,7 @@ from .processors import (
     Coords,
     Dims,
     Features,
+    combine_columns,
     drop_rows_with_missing_features,
     extract_features,
     extract_features_deprecated,
@@ -12,6 +13,7 @@ from .processors import (
     groupby,
     merge_scout_results,
     map_columns,
+    set_dims,
 )
 
 __all__ = [
@@ -21,6 +23,8 @@ __all__ = [
     "extract_features",
     "drop_rows_with_missing_features",
     "map_columns",
+    "combine_columns",
+    "set_dims",
     "groupby",
     "merge_scout_results",
     "DataProcessor",

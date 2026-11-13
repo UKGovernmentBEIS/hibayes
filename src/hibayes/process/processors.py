@@ -49,12 +49,21 @@ def extract_observed_feature(
         dtype = infer_jax_dtype(state.processed_data[feature_name])
 
         if test:
-
             features: Features = {
-                "obs": jnp.array(state.processed_data[~state.processed_data[test]][feature_name].values, dtype=dtype)
+                "obs": jnp.array(
+                    state.processed_data[~state.processed_data[test]][
+                        feature_name
+                    ].values,
+                    dtype=dtype,
+                )
             }
             test_features: Features = {
-                "obs": jnp.array(state.processed_data[state.processed_data[test]][feature_name].values, dtype=dtype)
+                "obs": jnp.array(
+                    state.processed_data[state.processed_data[test]][
+                        feature_name
+                    ].values,
+                    dtype=dtype,
+                )
             }
             if state.test_features:
                 state.test_features.update(test_features)
@@ -62,7 +71,6 @@ def extract_observed_feature(
                 state.test_features = test_features
 
         else:
-
             features: Features = {
                 "obs": jnp.array(state.processed_data[feature_name].values, dtype=dtype)
             }
@@ -179,7 +187,9 @@ def extract_features(
             if display:
                 n_train = train_mask.sum()
                 n_test = test_mask.sum()
-                display.logger.info(f"Processing with train/test split - Train: {n_train}, Test: {n_test}")
+                display.logger.info(
+                    f"Processing with train/test split - Train: {n_train}, Test: {n_test}"
+                )
 
         # continuous
         for feat in continuous_features:
@@ -201,10 +211,16 @@ def extract_features(
                     )
 
             if test_mask is not None:
-                features[feat] = jnp.asarray(state.processed_data.loc[train_mask, feat].values, dtype=dtype)
-                test_features[feat] = jnp.asarray(state.processed_data.loc[test_mask, feat].values, dtype=dtype)
+                features[feat] = jnp.asarray(
+                    state.processed_data.loc[train_mask, feat].values, dtype=dtype
+                )
+                test_features[feat] = jnp.asarray(
+                    state.processed_data.loc[test_mask, feat].values, dtype=dtype
+                )
             else:
-                features[feat] = jnp.asarray(state.processed_data[feat].values, dtype=dtype)
+                features[feat] = jnp.asarray(
+                    state.processed_data[feat].values, dtype=dtype
+                )
 
             if display:
                 display.logger.info(
@@ -227,7 +243,6 @@ def extract_features(
             cat_to_idx = {cat_val: i for i, cat_val in enumerate(index)}
             code = series.map(cat_to_idx).values
 
-
             if test_mask is not None:
                 train_code = code[train_mask]
                 test_code = code[test_mask]
@@ -246,7 +261,9 @@ def extract_features(
                 coords[f"{cat}_constrained"] = index[:-1].tolist()
             if display:
                 display.logger.info(f"Extracted categorical '{cat}' -> '{cat}_index'")
-                display.logger.info(f"  - Category order: {index.tolist()} (reference: {index[0]})")
+                display.logger.info(
+                    f"  - Category order: {index.tolist()} (reference: {index[0]})"
+                )
                 if effect_coding_for_main_effects and len(index) > 1:
                     display.logger.info(
                         f"  - Full effects: {len(index)}; Constrained: {len(index) - 1}"
@@ -281,10 +298,16 @@ def extract_features(
             for x in continuous_features if interaction_pairs is None else []:
                 x_dtype = infer_jax_dtype(state.processed_data[x])
                 if test_mask is not None:
-                    x_train_values = jnp.asarray(state.processed_data.loc[train_mask, x].values, dtype=x_dtype)
-                    x_test_values = jnp.asarray(state.processed_data.loc[test_mask, x].values, dtype=x_dtype)
+                    x_train_values = jnp.asarray(
+                        state.processed_data.loc[train_mask, x].values, dtype=x_dtype
+                    )
+                    x_test_values = jnp.asarray(
+                        state.processed_data.loc[test_mask, x].values, dtype=x_dtype
+                    )
                 else:
-                    x_values = jnp.asarray(state.processed_data[x].values, dtype=x_dtype)
+                    x_values = jnp.asarray(
+                        state.processed_data[x].values, dtype=x_dtype
+                    )
 
                 for g in categorical_features:
                     # per-observation regressor reused with category-index in the model
@@ -554,6 +577,92 @@ def map_columns(
 
 
 @process
+def combine_columns(
+    new_column: str,
+    columns: List[str],
+    separator: str = "::",
+) -> DataProcessor:
+    """
+    Join several columns into one string column.
+
+    Useful for building an id that is unique across groups, e.g. an item id
+    across benchmarks: sample ids usually restart at 1 in every dataset, so
+    ``task`` alone would merge unrelated items from different benchmarks.
+    ``combine_columns: {new_column: item, columns: [dataset, task]}`` gives
+    ids like ``"boolq::17"``.
+
+    Args:
+        new_column: Name of the column to create (overwritten if it exists).
+        columns: Columns to join, in order.
+        separator: String placed between the values.
+    """
+
+    def process(
+        state: AnalysisState,
+        display: ModellingDisplay | None = None,
+    ) -> AnalysisState:
+        data = state.processed_data
+        missing = [c for c in columns if c not in data.columns]
+        if missing:
+            raise ValueError(
+                f"combine_columns: columns {missing} not found in the processed data. "
+                f"Available columns: {list(data.columns)}"
+            )
+        if data[columns].isna().any().any():
+            raise ValueError(
+                f"combine_columns: columns {columns} contain missing values, which "
+                "would be joined as the string 'nan'. Drop or fill them first "
+                "(e.g. with drop_rows_with_missing_features)."
+            )
+        data[new_column] = data[columns].astype(str).agg(separator.join, axis=1)
+        state.processed_data = data
+        if display:
+            display.logger.info(
+                f"Built '{new_column}' from {columns}: "
+                f"{data[new_column].nunique()} unique values"
+            )
+        return state
+
+    return process
+
+
+@process
+def set_dims(dims: Dict[str, List[str]]) -> DataProcessor:
+    """
+    Name the dimensions of model variables so plots and tables label them.
+
+    ``extract_features`` sets dims for the ``{feature}_effects`` parameters it
+    creates. Other variables, such as a custom model's
+    ``numpyro.deterministic`` sites, get unnamed dims (``accuracy_dim_0``)
+    unless they are set here: ``set_dims: {dims: {accuracy: [model]}}`` makes
+    forest plots and summary tables show model names. Every dim must already
+    be a coord, so run this after ``extract_features``.
+
+    Args:
+        dims: Mapping from variable name to the list of its dim names.
+    """
+
+    def process(
+        state: AnalysisState,
+        display: ModellingDisplay | None = None,
+    ) -> AnalysisState:
+        missing = {d for dim_list in dims.values() for d in dim_list} - set(
+            state.coords or {}
+        )
+        if missing:
+            raise ValueError(
+                f"set_dims refers to unknown coords {sorted(missing)}. Known coords: "
+                f"{sorted(state.coords or {})}. Run it after extract_features."
+            )
+        state.dims = {**(state.dims or {}), **{k: list(v) for k, v in dims.items()}}
+        if display:
+            display.logger.info(f"Set dims: {dims}")
+        return state
+
+    return process
+
+
+@process
 def groupby(
     groupby_columns: Optional[List[str]] = None,
     *args,
@@ -599,6 +708,7 @@ def groupby(
 
     return process
 
+
 @process
 def merge_scout_results(
     scout_scan_path: str,
@@ -606,13 +716,13 @@ def merge_scout_results(
     join_on_left: str = "transcript_id",
     join_on_right: str = "transcript_id",
     columns_to_keep: list[str] | None = None,
-    prefix: str | None = None
+    prefix: str | None = None,
 ) -> DataProcessor:
     """
     Merge Scout scan results into the processed data.
-    
+
     Requires: inspect-scout (install with: pip install inspect-scout)
-    
+
     Parameters:
     - scout_scan_path: Path to Scout scan directory
     - scanner_name: Name of the scanner
@@ -621,7 +731,7 @@ def merge_scout_results(
                      If not found as a column, will auto-extract from transcript_metadata
     - columns_to_keep: Scout columns to merge (default: ['value', 'explanation', 'scan_model_usage'])
     - prefix: Prefix for ALL merged columns from Scout (default: scanner_name)
-    
+
     Example:
     - merge_scout_results:
         scout_scan_path: "scans/scan_id=abc123"
@@ -638,7 +748,9 @@ def merge_scout_results(
             "Install it with: pip install inspect-scout"
         ) from None
 
-    def process(state: AnalysisState, display: ModellingDisplay | None = None) -> AnalysisState:
+    def process(
+        state: AnalysisState, display: ModellingDisplay | None = None
+    ) -> AnalysisState:
         if state.processed_data is None or state.processed_data.empty:
             return state
 
@@ -650,9 +762,9 @@ def merge_scout_results(
             )
 
         # Set defaults - include scan_model_usage for the grader model
-        cols_to_keep = columns_to_keep or ['value', 'explanation', 'scan_model_usage']
+        cols_to_keep = columns_to_keep or ["value", "explanation", "scan_model_usage"]
         final_prefix = prefix or scanner_name
-        
+
         # Load Scout results
         scout_results = scan_results_df(scout_scan_path)
 
@@ -665,59 +777,68 @@ def merge_scout_results(
             )
 
         scout_df = scout_results.scanners[scanner_name].copy()
-        
+
         # Extract join column from metadata if it doesn't exist
         if join_on_right not in scout_df.columns:
+
             def extract(meta):
                 try:
                     data = json.loads(meta) if isinstance(meta, str) else meta
                     return data.get(join_on_right) if isinstance(data, dict) else None
                 except (json.JSONDecodeError, TypeError, AttributeError):
                     return None
-            
-            scout_df[join_on_right] = scout_df['transcript_metadata'].apply(extract)
-            
+
+            scout_df[join_on_right] = scout_df["transcript_metadata"].apply(extract)
+
             if display:
-                display.logger.info(f"Extracted '{join_on_right}' from metadata: {scout_df[join_on_right].head(3).tolist()}")
-        
+                display.logger.info(
+                    f"Extracted '{join_on_right}' from metadata: {scout_df[join_on_right].head(3).tolist()}"
+                )
+
         # Filter to requested columns
         cols_to_keep = [c for c in cols_to_keep if c in scout_df.columns]
         if not cols_to_keep:
             if display:
                 display.logger.warning("No valid columns to merge")
             return state
-        
+
         # Select columns (including join column)
         scout_df = scout_df[[join_on_right] + cols_to_keep].copy()
-        
+
         # Rename ALL scout columns with prefix (including join column to avoid conflicts)
         rename_map = {c: f"{final_prefix}_{c}" for c in cols_to_keep}
         if join_on_left != join_on_right:
             rename_map[join_on_right] = f"{final_prefix}_{join_on_right}"
-        
+
         scout_df = scout_df.rename(columns=rename_map)
-        
+
         # Merge
         before = len(state.processed_data)
         merged = pd.merge(
-            state.processed_data, 
-            scout_df, 
-            left_on=join_on_left, 
-            right_on=f"{final_prefix}_{join_on_right}" if join_on_left != join_on_right else join_on_right,
-            how='left'
+            state.processed_data,
+            scout_df,
+            left_on=join_on_left,
+            right_on=f"{final_prefix}_{join_on_right}"
+            if join_on_left != join_on_right
+            else join_on_right,
+            how="left",
         )
-        
+
         # Drop the renamed join column after merge (we don't need it)
         join_col_to_drop = f"{final_prefix}_{join_on_right}"
         if join_col_to_drop in merged.columns:
             merged = merged.drop(columns=[join_col_to_drop])
-        
+
         # Report
         if display:
             matched = merged[f"{final_prefix}_{cols_to_keep[0]}"].notna().sum()
-            display.logger.info(f"Merged '{scanner_name}': {matched}/{before} rows matched on {join_on_left}←{join_on_right}")
-            display.logger.info(f"  Added columns: {[f'{final_prefix}_{c}' for c in cols_to_keep]}")
-        
+            display.logger.info(
+                f"Merged '{scanner_name}': {matched}/{before} rows matched on {join_on_left}←{join_on_right}"
+            )
+            display.logger.info(
+                f"  Added columns: {[f'{final_prefix}_{c}' for c in cols_to_keep]}"
+            )
+
         state.processed_data = merged
         return state
 

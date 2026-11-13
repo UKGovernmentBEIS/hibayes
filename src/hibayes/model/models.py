@@ -3,6 +3,7 @@ from typing import List, Literal, Optional
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import numpyro
 import numpyro.distributions as dist
 
@@ -711,3 +712,224 @@ def linear_group_binomial(
         )
 
     return model
+
+
+def _item_groups(
+    item_index: np.ndarray, group_index: np.ndarray, num_item: int, num_group: int
+) -> np.ndarray:
+    """Group of each item; raises if an item appears in more than one group."""
+    item_group = np.zeros(num_item, dtype=np.int32)
+    item_group[item_index] = group_index
+    if not np.array_equal(item_group[item_index], group_index):
+        raise ValueError(
+            "Some items appear in more than one group. Item ids must be unique "
+            "within the whole dataset, e.g. build them with "
+            "combine_columns: {new_column: item, columns: [dataset, task]}."
+        )
+    if np.bincount(item_index, minlength=num_item).min() == 0:
+        raise ValueError("Some item levels have no rows.")
+    return item_group
+
+
+@model
+def accuracy_comparison(
+    model_column: str = "model",
+    item_column: Optional[str] = "item",
+    group_column: Optional[str] = None,
+    prior_baseline_loc: float = 0.0,
+    prior_baseline_scale: float = 1.5,
+    prior_difference_scale: float = 1.0,
+    prior_item_sigma_scale: float = 2.0,
+) -> Model:
+    """
+    Compare the accuracy of several AI models against a reference model.
+
+    Category: Comparison
+
+    The question this answers is "is model B better than model A on this
+    benchmark, and by how much?". On the log-odds scale:
+
+    ``logit P(correct) = baseline + difference[model] + item_offset[item]``
+
+    - ``baseline``: log-odds of a correct answer for the reference model (the
+      first ``model_column`` category; choose it with ``reference_categories``
+      in ``extract_features``) on an item of average difficulty.
+    - ``difference``: how many log-odds each other model adds, one per
+      non-reference model.
+    - ``item_offset = item_sigma * item_z``: a difficulty offset per item,
+      shared by every model (non-centred). This makes the comparison
+      *paired*: items every model gets right, or every model gets wrong, say
+      little about the difference, and the items they disagree on drive it
+      (Miller, 2024, arXiv:2411.00640, §4.2). Repeated answers to the same
+      item (epochs) share the offset, so they are not counted as independent
+      evidence. Set ``item_column: null`` to drop the term and fit an
+      unpaired comparison, which treats every answer as independent.
+
+    With ``group_column`` (e.g. ``benchmark``) each group gets its own
+    baseline, differences and item spread. Groups are a handful of named
+    datasets that matter in their own right, so they are not pooled.
+
+    The model reports what people ask about on the probability scale:
+
+    - ``accuracy``: per model (and group), averaged over the group's items.
+    - ``accuracy_difference``: each model minus the reference, with dim
+      ``{model_column}_contrast``.
+    - ``mean_accuracy_difference`` (grouped only): the difference averaged
+      over groups with equal weight per group.
+
+    Works on one row per answer (Bernoulli) or on aggregated counts
+    (Binomial, if ``n_total`` is present, e.g. after ``groupby`` over model
+    and item). Summarise with the ``comparison_summary`` communicator and
+    check the fit with the ``agreement_check`` checker.
+
+    Note: with only one or a few answers per item, an individual item's
+    fitted offset mostly reflects its own outcome pattern. Use the fitted
+    ``item_sigma`` (the population spread) rather than per-item offsets when
+    describing difficulty.
+
+    Args:
+        model_column: Categorical feature identifying the AI model.
+        item_column: Categorical feature identifying the item (question).
+            ``None`` fits the unpaired model.
+        group_column: Optional categorical feature for separate estimates per
+            group (e.g. benchmark). Items must not span groups.
+        prior_baseline_loc: Mean of the normal prior on ``baseline``.
+        prior_baseline_scale: Scale of that prior. 1.5 is roughly uniform on
+            accuracy.
+        prior_difference_scale: Scale of the normal prior on each
+            ``difference``. 1.0 allows large gaps (e.g. 50% vs 85%) while
+            ruling out absurd ones.
+        prior_item_sigma_scale: Scale of the half-normal prior on
+            ``item_sigma``, the spread of item difficulty in log-odds.
+            Benchmarks mix trivial and very hard items, so this is wider than
+            for most effects; raise it if the posterior presses against it.
+    """
+    grouped = group_column is not None
+    paired = item_column is not None
+
+    def model_fn(features: Features) -> None:
+        required = ["obs", f"{model_column}_index", f"num_{model_column}"]
+        if paired:
+            required += [f"{item_column}_index", f"num_{item_column}"]
+        if grouped:
+            required += [f"{group_column}_index", f"num_{group_column}"]
+        check_features(features, required)
+
+        num_model = int(features[f"num_{model_column}"])
+        if num_model < 2:
+            raise ValueError(
+                f"accuracy_comparison needs at least two levels of '{model_column}', "
+                f"got {num_model}."
+            )
+        model_idx = features[f"{model_column}_index"]
+        num_group = int(features[f"num_{group_column}"]) if grouped else 1
+        # Plain numpy (not jnp): this runs under jit, and the item/group
+        # bookkeeping below needs concrete values.
+        group_idx = (
+            np.asarray(features[f"{group_column}_index"])
+            if grouped
+            else np.zeros(np.shape(model_idx), dtype=np.int32)
+        )
+        shape = (num_group,) if grouped else ()
+
+        baseline = numpyro.sample(
+            "baseline",
+            dist.Normal(prior_baseline_loc, prior_baseline_scale).expand(shape),
+        )
+        difference = numpyro.sample(
+            "difference",
+            dist.Normal(0.0, prior_difference_scale).expand(shape + (num_model - 1,)),
+        )
+        # Reference model's difference is 0; shape (num_group, num_model).
+        base_g = jnp.reshape(baseline, (num_group,))
+        diff_g = jnp.concatenate(
+            [
+                jnp.zeros((num_group, 1)),
+                jnp.reshape(difference, (num_group, num_model - 1)),
+            ],
+            axis=-1,
+        )
+        logits = base_g[group_idx] + diff_g[group_idx, model_idx]
+
+        if paired:
+            num_item = int(features[f"num_{item_column}"])
+            item_idx = features[f"{item_column}_index"]
+            item_group = _item_groups(
+                np.asarray(item_idx), np.asarray(group_idx), num_item, num_group
+            )
+            item_sigma = numpyro.sample(
+                "item_sigma", dist.HalfNormal(prior_item_sigma_scale).expand(shape)
+            )
+            with numpyro.plate(item_column, num_item):
+                item_z = numpyro.sample("item_z", dist.Normal(0.0, 1.0))
+            item_offset = jnp.reshape(item_sigma, (num_group,))[item_group] * item_z
+            logits = logits + item_offset[item_idx]
+
+            # Accuracy averaged over each group's items, per model.
+            p_item = jax.nn.sigmoid(
+                (base_g[item_group] + item_offset)[:, None] + diff_g[item_group]
+            )
+            items_per_group = np.bincount(item_group, minlength=num_group)
+            accuracy = (
+                jax.ops.segment_sum(p_item, item_group, num_group)
+                / items_per_group[:, None]
+            )
+        else:
+            accuracy = jax.nn.sigmoid(base_g[:, None] + diff_g)
+
+        if "n_total" in features:
+            numpyro.sample(
+                "obs",
+                dist.Binomial(total_count=features["n_total"], logits=logits),
+                obs=features["obs"],
+            )
+        else:
+            numpyro.sample("obs", dist.Bernoulli(logits=logits), obs=features["obs"])
+
+        accuracy_difference = accuracy[:, 1:] - accuracy[:, :1]
+        if grouped:
+            numpyro.deterministic("accuracy", accuracy)
+            numpyro.deterministic("accuracy_difference", accuracy_difference)
+            numpyro.deterministic(
+                "mean_accuracy_difference", accuracy_difference.mean(axis=0)
+            )
+        else:
+            numpyro.deterministic("accuracy", accuracy[0])
+            numpyro.deterministic("accuracy_difference", accuracy_difference[0])
+
+    def coords_and_dims(coords, dims):
+        contrast = f"{model_column}_contrast"
+        if model_column in coords:
+            reference, *others = coords[model_column]
+            coords[contrast] = [f"{m} - {reference}" for m in others]
+        g = [group_column] if grouped else []
+        dims.update(
+            {
+                "difference": g + [contrast],
+                "accuracy": g + [model_column],
+                "accuracy_difference": g + [contrast],
+            }
+        )
+        if grouped:
+            dims.update(
+                {
+                    "baseline": g,
+                    "mean_accuracy_difference": [contrast],
+                }
+            )
+        if paired:
+            dims["item_z"] = [item_column]
+            if grouped:
+                dims["item_sigma"] = g
+        # Only name dims whose coords exist (e.g. not if features were built
+        # by hand without extract_features).
+        dims = {k: v for k, v in dims.items() if all(d in coords for d in v)}
+        return coords, dims
+
+    model_fn.coords_and_dims = coords_and_dims
+    model_fn.comparison_columns = {
+        "model": model_column,
+        "item": item_column,
+        "group": group_column,
+    }
+    return model_fn

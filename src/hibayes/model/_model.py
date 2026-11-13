@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import wraps
-from typing import Callable, Protocol
+from typing import Any, Callable, Dict, List, Protocol, Tuple
 
 from ..process import Features
 from ..registry import RegistryInfo, registry_add, registry_tag
@@ -55,6 +55,12 @@ def model(
 
             return modeller(features)
 
+        # Keep attributes the builder set on the model it returned, e.g.
+        # ``coords_and_dims`` (see ``model_coords_and_dims``).
+        for name, value in getattr(modeller, "__dict__", {}).items():
+            if not name.startswith("__"):
+                setattr(model_interface, name, value)
+
         kwargs_pass = {k: v for k, v in kwargs.items() if k != "info"}
 
         registry_tag(
@@ -71,3 +77,25 @@ def model(
     registry_add(model_wrapper, registry_info)
 
     return model_wrapper
+
+
+def model_coords_and_dims(
+    model: Model,
+    coords: Dict[str, List[Any]] | None,
+    dims: Dict[str, List[str]] | None,
+) -> Tuple[Dict[str, List[Any]] | None, Dict[str, List[str]] | None]:
+    """
+    Coords and dims for one model: the processed ones plus any the model declares.
+
+    A model builder can name the dimensions of its own variables (typically
+    ``numpyro.deterministic`` sites, which ``extract_features`` knows nothing
+    about) by attaching a ``coords_and_dims(coords, dims)`` function to the
+    model it returns. It receives copies of the processed coords and dims and
+    returns the ones to use for this model. Dims a user set explicitly (e.g.
+    with the ``set_dims`` processor) win over the model's.
+    """
+    hook = getattr(model, "coords_and_dims", None)
+    if hook is None:
+        return coords, dims
+    new_coords, new_dims = hook(dict(coords or {}), dict(dims or {}))
+    return new_coords, {**new_dims, **(dims or {})}
