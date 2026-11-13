@@ -435,6 +435,46 @@ class TestExtractFeatures:
         assert "score" in result.features
         assert len([k for k in result.features.keys() if k == "score"]) == 1
 
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {},
+            {"reference_categories": {"model": "gpt"}},
+            {"category_order": {"model": ["claude", "gpt"]}},
+        ],
+        ids=["default_order", "reference_categories", "category_order"],
+    )
+    @pytest.mark.parametrize("missing", [None, np.nan])
+    def test_extract_features_rejects_missing_categorical(self, kwargs, missing):
+        """Regression for #87: missing categoricals must not be coded as a real level."""
+        data = pd.DataFrame(
+            {
+                "model": ["gpt", "claude", missing, "gpt"],
+                "score": [1.0, 0.0, 1.0, 0.0],
+            }
+        )
+        processor = extract_features(categorical_features=["model"], **kwargs)
+        with pytest.raises(
+            ValueError,
+            match=r"Categorical feature 'model' has 1 missing value\(s\).*drop_rows_with_missing_features",
+        ):
+            processor(AnalysisState(data=data))
+
+    def test_extract_features_after_dropping_missing_categorical(self):
+        """Dropping missing rows first gives a clean encoding."""
+        data = pd.DataFrame(
+            {
+                "model": ["gpt", "claude", None, "gpt"],
+                "score": [1.0, 0.0, 1.0, 0.0],
+            }
+        )
+        state = drop_rows_with_missing_features(feature_names=["model"])(
+            AnalysisState(data=data)
+        )
+        state = extract_features(categorical_features=["model"])(state)
+        assert state.coords["model"] == ["claude", "gpt"]
+        assert np.asarray(state.features["model_index"]).tolist() == [1, 0, 1]
+
 
 class TestExtractPredictors:
     """Test extract_features processor with categorical_features."""
@@ -533,7 +573,9 @@ class TestExtractPredictors:
         self, sample_analysis_state: AnalysisState, mock_display: ModellingDisplay
     ):
         """Test extracting predictors with interactions enabled."""
-        processor = extract_features(categorical_features=["model", "task"], interactions=True)
+        processor = extract_features(
+            categorical_features=["model", "task"], interactions=True
+        )
         result = processor(sample_analysis_state, mock_display)
 
         # Check that basic features are still there
@@ -556,7 +598,9 @@ class TestExtractPredictors:
         self, sample_analysis_state: AnalysisState, mock_display: ModellingDisplay
     ):
         """Test extracting predictors with effect coding for main effects."""
-        processor = extract_features(categorical_features=["model", "task"], effect_coding_for_main_effects=True)
+        processor = extract_features(
+            categorical_features=["model", "task"], effect_coding_for_main_effects=True
+        )
         result = processor(sample_analysis_state, mock_display)
 
         # Check that constrained coordinates are created
@@ -608,7 +652,8 @@ class TestExtractPredictors:
         """Test extracting predictors with both interactions and effect coding."""
         processor = extract_features(
             categorical_features=["model", "task"],
-            interactions=True, effect_coding_for_main_effects=True
+            interactions=True,
+            effect_coding_for_main_effects=True,
         )
         result = processor(sample_analysis_state, mock_display)
 
@@ -766,7 +811,9 @@ class TestExtractPredictors:
         self, sample_analysis_state: AnalysisState
     ):
         """Test that constrained coordinates contain the correct values (all but last)."""
-        processor = extract_features(categorical_features=["model", "task"], effect_coding_for_main_effects=True)
+        processor = extract_features(
+            categorical_features=["model", "task"], effect_coding_for_main_effects=True
+        )
         result = processor(sample_analysis_state)
 
         # Check that constrained coords are all but the last (when sorted)
@@ -907,7 +954,9 @@ class TestExtractPredictors:
         processor = extract_features(
             categorical_features=["model"],
             reference_categories={"model": "claude"},  # Would put claude first
-            category_order={"model": ["gemini", "gpt-4", "claude"]},  # But this takes precedence
+            category_order={
+                "model": ["gemini", "gpt-4", "claude"]
+            },  # But this takes precedence
         )
         result = processor(state)
 
@@ -2117,7 +2166,11 @@ def comprehensive_processor(
                     }
                 },
                 "extract_observed_feature",
-                {"extract_features": {"continuous_features": ["score", "normalized_score"]}},
+                {
+                    "extract_features": {
+                        "continuous_features": ["score", "normalized_score"]
+                    }
+                },
                 {"extract_features": {"categorical_features": ["model"]}},
             ],
         }
@@ -2290,12 +2343,16 @@ class TestExtractFeaturesTrainTestSplit:
 
         # Check train features are standardised with train stats
         expected_train = (train_scores.values - train_mean) / (train_std + 1e-8)
-        assert jnp.allclose(result.features["score"], jnp.array(expected_train), atol=1e-5)
+        assert jnp.allclose(
+            result.features["score"], jnp.array(expected_train), atol=1e-5
+        )
 
         # Check test features are also standardised with TRAIN stats (not test stats)
         test_scores = train_test_data[train_test_data["is_test"]]["score"]
         expected_test = (test_scores.values - train_mean) / (train_std + 1e-8)
-        assert jnp.allclose(result.test_features["score"], jnp.array(expected_test), atol=1e-5)
+        assert jnp.allclose(
+            result.test_features["score"], jnp.array(expected_test), atol=1e-5
+        )
 
     def test_extract_features_test_split_preserves_category_order(self):
         """Test that category ordering is consistent between train and test."""

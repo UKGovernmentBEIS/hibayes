@@ -170,3 +170,9 @@ def test_extreme_likelihood_and_gradients_remain_finite_in_float32(eta):
         predictor
     )
     np.testing.assert_allclose(derivative, -expit(eta + 4), atol=1e-7)
+
+
+def test_boundary_preset_builds_without_explicit_first_cutpoint_loc():
+    """Regression for #86: the preset computed its default loc with an unimported `exp`."""
+    sites = model_trace(num_classes=5, prior_preset="boundary")
+    assert float(sites["first_cutpoint"]["fn"].loc) == pytest.approx(-1.4017, abs=1e-4)

@@ -27,8 +27,17 @@ def get_category_order(
 
     Raises:
         ValueError: If custom_order is missing categories found in the data,
-            or if reference_category is not found in the data.
+            or if reference_category is not found in the data, or if the series
+            contains missing values.
     """
+    n_missing = int(series.isna().sum())
+    if n_missing:
+        raise ValueError(
+            f"Categorical feature '{feature_name}' has {n_missing} missing value(s). "
+            "Drop these rows first (e.g. with the drop_rows_with_missing_features "
+            "processor) or replace them with an explicit category."
+        )
+
     if custom_order is not None:
         # User specified full ordering
         unique_in_data = set(series.unique())
