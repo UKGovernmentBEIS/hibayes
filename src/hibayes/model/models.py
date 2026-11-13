@@ -1,3 +1,4 @@
+from math import exp
 from typing import List, Literal, Optional
 
 import jax

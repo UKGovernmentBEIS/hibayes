@@ -95,8 +95,11 @@ Or use the simpler list format for processors with default arguments:
 data_process:
   processors:
     - extract_observed_feature
+    - drop_rows_with_missing_features
     - extract_features
 ```
+
+`extract_features` raises an error if a categorical feature has missing values, so drop those rows first with `drop_rows_with_missing_features` (which checks `model` and `task` by default) or fill them with an explicit category.
 
 ## Train/test splitting
 
