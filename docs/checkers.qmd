@@ -66,6 +66,7 @@ You can also inspect the model directory in the AnalysisState for each model. He
 | `loo` | Leave-One-Out cross-validation (PSIS-LOO) | `reff_threshold=0.7`, `scale='log'` | pass if all Pareto k < threshold |
 | `waic` | Computes Widely Applicable Information Criterion | `scale='log'` | NA (informational) |
 | `posterior_predictive_plot` | Compares observed data to posterior predictions | `num_samples=500`, `kind='kde'`, `interactive=True` | pass/fail (user approval) |
+| `agreement_check` | For paired `accuracy_comparison` fits: do simulated *new* items reproduce how often the reference and each compared model are both right, only one right, or both wrong? Saves a plot and table | `num_sims=400`, `credible_mass=0.95`, `seed=1` | pass if every observed share is inside its interval; NA for other models |
 
 
 You can customise which checkers run and their parameters in your config file.

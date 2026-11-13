@@ -123,6 +123,23 @@ position in that config does not make it the package default.
 
 **`ordered_logistic_model`** - Ordered logistic regression for ordinal outcomes. Supports main effects, interactions, and configurable cutpoint priors.
 
+### Comparing models on the same items
+
+**`accuracy_comparison`** - Is model B better than model A, and by how much? Fits a log-odds `baseline` for the reference model (the first category; set it with `reference_categories`), a `difference` for every other model, and by default a difficulty offset per item shared by all models (`item_sigma`, non-centred `item_z`). The shared offset makes the comparison *paired*: items every model gets right or wrong say little, so intervals are typically narrower than an unpaired comparison of the same answers, and repeated answers (epochs) to one item are not counted as independent. `item_column: null` fits the unpaired model; `group_column: benchmark` gives each benchmark its own baseline, differences and item spread. Reports `accuracy`, `accuracy_difference` (each model minus the reference, with dim `model_contrast`) and, when grouped, `mean_accuracy_difference`. It names these dims itself, so no `set_dims` is needed. Works on one row per answer or on counts with `n_total`. Pair it with the `comparison_summary` communicator and the `agreement_check` checker. Walkthrough: [Comparing Two Models](examples/comparing-two-models.qmd).
+
+```yaml
+data_process:
+  processors:
+    - combine_columns: {new_column: item, columns: [dataset, task]}
+    - extract_features:
+        categorical_features: [model, item]
+        reference_categories: {model: gpt-4o}
+    - extract_observed_feature: {feature_name: score}
+model:
+  models:
+    - name: accuracy_comparison
+```
+
 ### Ordinal priors for scores at the ends of the rubric
 
 The original ordinal priors remain the default: `intercept ~ Normal(0, 1)`,
@@ -228,6 +245,25 @@ model:
 
 The `@model` decorator registers your function so it can be accessed by name in the config.
 
+A model that creates its own variables with `numpyro.deterministic` can name their dimensions, so forest plots and tables show labels rather than `accuracy_dim_0`. Attach a `coords_and_dims(coords, dims)` function to the model the builder returns; it receives copies of the processed coords and dims and returns the ones to use for this model:
+
+```python
+@model
+def my_model() -> Model:
+    def model_fn(features):
+        ...
+        numpyro.deterministic("accuracy", accuracy)  # one value per model
+
+    def coords_and_dims(coords, dims):
+        dims["accuracy"] = ["model"]
+        return coords, dims
+
+    model_fn.coords_and_dims = coords_and_dims
+    return model_fn
+```
+
+Dims set in the config with the `set_dims` processor take precedence.
+
 ## Built-in Models Reference
 
 ### Hierarchical Binomial Models
@@ -249,3 +285,4 @@ For modelling effects of categorical/continuous predictors.
 |-------|-------------|----------------|
 | `linear_group_binomial` | Non-hierarchical binomial regression. Treats groups as fixed effects rather than random. Supports main effects and interactions with optional effect coding. | `main_effects`, `interactions`, `effect_coding_for_main_effects` |
 | `ordered_logistic_model` | Ordered logistic regression for ordinal outcomes (e.g., 0-10 ratings). Models cumulative probabilities via ordered cutpoints. | `main_effects`, `interactions`, `num_classes`, `effect_coding_for_main_effects` |
+| `accuracy_comparison` | Accuracy of several AI models against a reference, paired by item (shared item difficulty offset) or unpaired, optionally per group (e.g. benchmark). Bernoulli per answer or Binomial on counts. | `model_column`, `item_column` (`null` = unpaired), `group_column`, `prior_baseline_scale`, `prior_difference_scale`, `prior_item_sigma_scale` |

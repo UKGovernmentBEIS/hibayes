@@ -4,10 +4,10 @@ import arviz as az
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import xarray as xr
 from numpyro.infer import Predictive
 
-from hibayes.ui import display
 
 from ..analysis_state import ModelAnalysisState
 from ..ui import ModellingDisplay
@@ -201,9 +201,11 @@ def prior_predictive_plot(
                     **plot_kwargs,
                 )
             except ValueError as e:
-                if ("Too many bins for data range" in str(e) or
-                    "inhomogeneous shape" in str(e) or
-                    "setting an array element with a sequence" in str(e)):
+                if (
+                    "Too many bins for data range" in str(e)
+                    or "inhomogeneous shape" in str(e)
+                    or "setting an array element with a sequence" in str(e)
+                ):
                     # Fall back to matplotlib histogram when KDE fails
                     display.logger.warning(
                         f"KDE plot failed for '{var}' (likely due to data shape issues or limited data range). "
@@ -414,10 +416,7 @@ def divergences(threshold: int = 0):
 
 
 @checker
-def loo(
-    reff_threshold: float = 0.7,
-    scale: str = "log"
-) -> Checker:
+def loo(reff_threshold: float = 0.7, scale: str = "log") -> Checker:
     """
     Compute Leave-One-Out cross-validation using Pareto-Smoothed Importance Sampling.
 
@@ -437,7 +436,9 @@ def loo(
         Checker function that passes if all Pareto k values are below threshold.
     """
 
-    def check(state: ModelAnalysisState, display: ModellingDisplay = None) -> Tuple[ModelAnalysisState, CheckerResult]:
+    def check(
+        state: ModelAnalysisState, display: ModellingDisplay = None
+    ) -> Tuple[ModelAnalysisState, CheckerResult]:
         if "loo" in state.diagnostics:
             loo_res = state.diagnostics["loo"]
         else:
@@ -709,5 +710,239 @@ def waic(scale: str = "log") -> Checker:
                 f"p_waic: {waic_res['p_waic']:.2f}"
             )
         return state, "NA"
+
+    return check
+
+
+_AGREEMENT_PATTERNS = (
+    "both right",
+    "only reference right",
+    "only compared right",
+    "both wrong",
+)
+
+
+def _agreement_shares(p_ref: np.ndarray, p_other: np.ndarray) -> np.ndarray:
+    """
+    Expected share of the four agreement patterns, averaged over items.
+
+    ``p_ref``/``p_other`` are each model's share correct per item (last axis).
+    With one answer per item and model this is the exact share of answer
+    pairs in each pattern; with repeats (epochs) it pairs every answer of one
+    model with every answer of the other on the same item.
+    """
+    return np.stack(
+        [
+            p_ref * p_other,
+            p_ref * (1 - p_other),
+            (1 - p_ref) * p_other,
+            (1 - p_ref) * (1 - p_other),
+        ]
+    ).mean(axis=-1)
+
+
+@checker
+def agreement_check(
+    num_sims: int = 400,
+    credible_mass: float = 0.95,
+    seed: int = 1,
+) -> Checker:
+    """
+    Posterior predictive check of how often compared models agree.
+
+    Category: Posterior predictive
+
+    For ``accuracy_comparison`` fits with an item term. Every answer pair
+    (the reference model and one compared model on the same item) falls into
+    one of four patterns: both right, only the reference right, only the
+    compared model right, both wrong. The two "only one right" patterns are
+    what drive the estimated difference, and the balance between "both
+    right" and "both wrong" is what the item spread has to explain.
+
+    For each of ``num_sims`` posterior draws, the check simulates *new*
+    items from the fitted difficulty distribution, as many as each group has
+    and with the same number of answers per item, and computes the pattern
+    shares. New items rather than the fitted ones, so the check isn't
+    circular: the fitted item offsets have already seen the answers.
+
+    Passes if every observed share falls inside its ``credible_mass``
+    interval. Each share is checked separately, so with many groups or
+    compared models expect the occasional share just outside by chance (at
+    95%, roughly one in twenty); look at how far outside it is before
+    concluding the model misfits. Saves a plot (``agreement_check``) and a table
+    (``agreement_check_table``) to the model's diagnostics. Returns NA for
+    other models.
+
+    Args:
+        num_sims: Posterior draws to simulate from.
+        credible_mass: Mass of the simulated interval each share must fall in.
+        seed: Random seed for the simulation.
+    """
+
+    def check(state: ModelAnalysisState, display: ModellingDisplay = None):
+        columns = getattr(state.model, "comparison_columns", None)
+        if not columns or not columns.get("item") or state.inference_data is None:
+            return state, "NA"
+        post = state.inference_data.posterior
+        if "item_sigma" not in post:
+            return state, "NA"
+
+        from scipy.special import expit
+
+        f = state.features
+        model_col, item_col, group_col = (
+            columns["model"],
+            columns["item"],
+            columns["group"],
+        )
+        model_idx = np.asarray(f[f"{model_col}_index"])
+        item_idx = np.asarray(f[f"{item_col}_index"])
+        num_model = int(f[f"num_{model_col}"])
+        num_item = int(f[f"num_{item_col}"])
+        num_group = int(f[f"num_{group_col}"]) if group_col else 1
+        group_idx = (
+            np.asarray(f[f"{group_col}_index"])
+            if group_col
+            else np.zeros_like(item_idx)
+        )
+        obs = np.asarray(f["obs"], dtype=float)
+        trials = (
+            np.asarray(f["n_total"], dtype=float)
+            if "n_total" in f
+            else np.ones_like(obs)
+        )
+
+        # Successes and trials per (item, model).
+        cell = item_idx * num_model + model_idx
+        k = np.bincount(cell, weights=obs, minlength=num_item * num_model)
+        n = np.bincount(cell, weights=trials, minlength=num_item * num_model)
+        k, n = k.reshape(num_item, num_model), n.reshape(num_item, num_model)
+        item_group = np.zeros(num_item, dtype=int)
+        item_group[item_idx] = group_idx
+
+        # Posterior draws, flattened and thinned: (S, G) and (S, G, K-1).
+        stacked = post.stack(sample=("chain", "draw"))
+        keep = np.linspace(0, stacked.sizes["sample"] - 1, num_sims).astype(int)
+
+        def draws(name: str, extra: int) -> np.ndarray:
+            arr = np.moveaxis(np.asarray(stacked[name]), -1, 0)[keep]
+            return arr.reshape((num_sims, num_group) + ((extra,) if extra else ()))
+
+        baseline = draws("baseline", 0)
+        sigma = draws("item_sigma", 0)
+        difference = draws("difference", num_model - 1)
+
+        coords = state.coords or {}
+        model_names = list(coords.get(model_col, range(num_model)))
+        group_names = (
+            list(coords.get(group_col, range(num_group))) if group_col else [""]
+        )
+
+        rng = np.random.default_rng(seed)
+        tail = (1 - credible_mass) / 2
+        rows, panels = [], []
+        for g in range(num_group):
+            for m in range(1, num_model):
+                items = (item_group == g) & (n[:, 0] > 0) & (n[:, m] > 0)
+                if not items.any():
+                    continue
+                n_ref, n_oth = n[items, 0], n[items, m]
+                observed = _agreement_shares(k[items, 0] / n_ref, k[items, m] / n_oth)
+                eta = baseline[:, g, None] + sigma[:, g, None] * rng.standard_normal(
+                    (num_sims, items.sum())
+                )
+                sim_ref = rng.binomial(n_ref.astype(int), expit(eta)) / n_ref
+                sim_oth = (
+                    rng.binomial(
+                        n_oth.astype(int), expit(eta + difference[:, g, m - 1, None])
+                    )
+                    / n_oth
+                )
+                lo, hi = np.quantile(
+                    _agreement_shares(sim_ref, sim_oth), [tail, 1 - tail], axis=1
+                )
+                for pattern, o, a, b in zip(_AGREEMENT_PATTERNS, observed, lo, hi):
+                    rows.append(
+                        {
+                            "group": str(group_names[g]),
+                            "reference": str(model_names[0]),
+                            "compared": str(model_names[m]),
+                            "pattern": pattern,
+                            "observed": o,
+                            "lower": a,
+                            "upper": b,
+                            "inside": bool(a <= o <= b),
+                        }
+                    )
+                panels.append((g, m, observed, lo, hi))
+
+        if not rows:
+            return state, "NA"
+        table = pd.DataFrame(rows)
+        state.add_diagnostic("agreement_check_table", table)
+
+        fig_height = 3.6 if group_col else 3.3
+        fig, axes = plt.subplots(
+            1,
+            len(panels),
+            figsize=(3.2 * len(panels) + 1.5, fig_height),
+            sharey=True,
+            squeeze=False,
+        )
+        y = np.arange(len(_AGREEMENT_PATTERNS))[::-1]
+        for ax, (g, m, observed, lo, hi) in zip(axes[0], panels):
+            ax.hlines(
+                y,
+                lo,
+                hi,
+                color="#2a78d6",
+                linewidth=10,
+                alpha=0.45,
+                label=f"new items ({credible_mass:.0%} interval)",
+            )
+            ax.plot(observed, y, "o", color="#0b0b0b", markersize=4.5, label="observed")
+            title = f"reference: {model_names[0]}\ncompared: {model_names[m]}"
+            if group_col:
+                title = f"{group_names[g]}\n{title}"
+            ax.set_title(title, loc="left", fontsize=9)
+            ax.set_yticks(y, _AGREEMENT_PATTERNS)
+            ax.set_xscale("function", functions=(np.sqrt, np.square))
+            ax.set_xlim(0, 1)
+            ax.set_xticks([0, 0.05, 0.25, 0.5, 1])
+            ax.xaxis.set_major_formatter(lambda v, _: f"{v:.0%}")
+            ax.grid(axis="x", color="#e4e3dd", linewidth=0.8)
+            ax.set_axisbelow(True)
+            for side in ("top", "right", "left"):
+                ax.spines[side].set_visible(False)
+        handles, labels = axes[0, 0].get_legend_handles_labels()
+        fig.legend(
+            handles,
+            labels,
+            ncols=2,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 1.0),
+            frameon=False,
+            fontsize=9,
+        )
+        fig.supxlabel("Share of answer pairs (square-root scale)", fontsize=10)
+        fig.tight_layout(rect=(0, 0, 1, 1 - 0.35 / fig_height))
+        state.add_diagnostic("agreement_check", fig)
+
+        outside = table.loc[~table["inside"]]
+        if display:
+            display.logger.info(
+                f"agreement_check: {len(table) - len(outside)} of {len(table)} "
+                f"observed pattern shares inside the {credible_mass:.0%} interval"
+                + (
+                    ""
+                    if outside.empty
+                    else "; outside: "
+                    + ", ".join(
+                        f"{r.group} {r.compared}/{r.pattern}".strip()
+                        for r in outside.itertuples()
+                    )
+                )
+            )
+        return state, "pass" if outside.empty else "fail"
 
     return check

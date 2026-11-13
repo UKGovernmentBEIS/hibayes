@@ -1,0 +1,59 @@
+# Step 3: the paired comparison across all four benchmarks at once.
+data_loader:
+  paths:
+    files_to_process:
+      - ../../hibayes-usecases/data/gpt-4o
+      - ../../hibayes-usecases/data/claude-sonnet-3-5
+  extractors:
+    enabled:
+      - base_extractor
+
+data_process:
+  processors:
+    - map_columns: {column_mapping: {dataset: benchmark}}
+    # Sample ids restart in every dataset, so make item ids unique per benchmark.
+    # mbpp was run for 5 epochs: its repeats share an item id, and so an item offset.
+    - combine_columns: {new_column: item, columns: [benchmark, task]}
+    - extract_features:
+        categorical_features: [model, benchmark, item]
+        reference_categories: {model: gpt-4o}
+    - extract_observed_feature: {feature_name: score}
+
+model:
+  models:
+    - name: accuracy_comparison
+      config:
+        tag: by_benchmark
+        # A separate baseline, difference and item spread per benchmark.
+        group_column: benchmark
+        # Wider than the default HalfNormal(2): race-h and mbpp are mostly
+        # near-certain items with a few hard ones, so item difficulty spreads
+        # over 5-6 log-odds. With thousands of items the data pin this down;
+        # the narrower prior pulled it in (see the README's sensitivity check).
+        prior_item_sigma_scale: 5.0
+        fit: {seed: 0}
+
+check:
+  checkers:
+    # One row per answer (0/1), so these plot outcome counts, not proportions.
+    - prior_predictive_plot: {interactive: false}
+    - r_hat
+    - divergences
+    - ess_bulk
+    - ess_tail
+    - bfmi
+    # No loo/waic: there is only one model here to compare, and with one item
+    # offset per handful of answers, PSIS-LOO is unreliable at this level
+    # (many Pareto k > 0.7). Step 2 makes the paired-vs-unpaired comparison.
+    - posterior_predictive_plot: {interactive: false}
+    - agreement_check
+
+communicate:
+  path: ../custom_communicators.py
+  communicators:
+    - comparison_summary
+    - agreement_plot
+    - item_difficulty_plot
+    - forest_plot: {vars: [accuracy_difference, mean_accuracy_difference], combined: true, vertical_line: 0, best_model: false}
+    - forest_plot: {vars: [accuracy], combined: true, best_model: false}
+    - summary_table: {vars: [baseline, difference, item_sigma, accuracy, accuracy_difference, mean_accuracy_difference], best_model: false}

@@ -6,5 +6,6 @@ subtitle: "Example HiBayES analysis"
 Here we document example use cases of HiBayes. More examples incoming! We welcome contributions of your own example use cases.
 
 ### Examples
+- [Comparing two models: from two accuracies to a paired comparison](comparing-two-models.qmd) (start here)
 - [Binomial model fitted to hierarchal data](hibayes-usecases.qmd)
 - [An investigation into LLM-as-a-judge biases with ordinal data](llm-as-a-judge.qmd)

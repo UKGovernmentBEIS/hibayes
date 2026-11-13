@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
@@ -12,11 +12,11 @@ from .load import (
     DataLoaderConfig,
     get_sample_df,
 )
-from .model import ModelsToRunConfig, fit
+from .model import ModelsToRunConfig, fit, model_coords_and_dims
 from .platform import PlatformConfig
 from .process import ProcessConfig
 from .registry import registry_info
-from .ui import Display, ModellingDisplay
+from .ui import Display
 from .utils import init_logger
 
 logger = init_logger()
@@ -172,31 +172,56 @@ def _extract_check_details(
     diag = model_analysis_state.diagnostics or {}
     if checker_name == "r_hat":
         vals = diag.get("r_hat")
-        return {"values": vals.tolist() if hasattr(vals, "tolist") else vals, "threshold": "< 1.01"} if vals is not None else {}
+        return (
+            {
+                "values": vals.tolist() if hasattr(vals, "tolist") else vals,
+                "threshold": "< 1.01",
+            }
+            if vals is not None
+            else {}
+        )
     elif checker_name == "ess_bulk":
         vals = diag.get("ess_bulk")
-        return {"values": vals.tolist() if hasattr(vals, "tolist") else vals, "threshold": "> 1000"} if vals is not None else {}
+        return (
+            {
+                "values": vals.tolist() if hasattr(vals, "tolist") else vals,
+                "threshold": "> 1000",
+            }
+            if vals is not None
+            else {}
+        )
     elif checker_name == "ess_tail":
         vals = diag.get("ess_tail")
-        return {"values": vals.tolist() if hasattr(vals, "tolist") else vals, "threshold": "> 1000"} if vals is not None else {}
+        return (
+            {
+                "values": vals.tolist() if hasattr(vals, "tolist") else vals,
+                "threshold": "> 1000",
+            }
+            if vals is not None
+            else {}
+        )
     elif checker_name == "divergences":
         count = diag.get("divergences")
         return {"count": count, "threshold": "<= 0"} if count is not None else {}
     elif checker_name == "loo":
         return {
-            k: v for k, v in {
+            k: v
+            for k, v in {
                 "elpd_loo": diag.get("elpd_loo"),
                 "se": diag.get("se_elpd_loo"),
                 "p_loo": diag.get("p_loo"),
-            }.items() if v is not None
+            }.items()
+            if v is not None
         }
     elif checker_name == "waic":
         return {
-            k: v for k, v in {
+            k: v
+            for k, v in {
                 "elpd_waic": diag.get("elpd_waic"),
                 "se": diag.get("se_elpd_waic"),
                 "p_waic": diag.get("p_waic"),
-            }.items() if v is not None
+            }.items()
+            if v is not None
         }
     elif checker_name == "bfmi":
         vals = diag.get("bfmi")
@@ -384,13 +409,16 @@ def model(
 
     with display.capture_logs():
         for model, model_config in models_to_run_config.enabled_models:
+            coords, dims = model_coords_and_dims(
+                model, analysis_state.coords, analysis_state.dims
+            )
             model_analysis_state = ModelAnalysisState(
                 model=model,
                 model_config=model_config,
                 platform_config=platform_config,
                 features=analysis_state.features,
-                coords=analysis_state.coords,
-                dims=analysis_state.dims,
+                coords=coords,
+                dims=dims,
             )
 
             display.set_active_model(model_analysis_state.model_name)
@@ -408,7 +436,9 @@ def model(
 
             # Show InferenceData summary in the display
             if model_analysis_state.inference_data is not None:
-                idata_summary = _extract_idata_summary(model_analysis_state.inference_data)
+                idata_summary = _extract_idata_summary(
+                    model_analysis_state.inference_data
+                )
                 if idata_summary:
                     display.show_inference_summary(idata_summary)
 
@@ -516,7 +546,11 @@ def communicate(
                 f"Running communicator for {registry_info(communicator).name}"
             )
             # Snapshot communicate keys before running
-            keys_before = set(analysis_state.communicate.keys()) if analysis_state.communicate else set()
+            keys_before = (
+                set(analysis_state.communicate.keys())
+                if analysis_state.communicate
+                else set()
+            )
 
             analysis_state, outcome = communicator(analysis_state, display=display)
             display.update_logs(
@@ -524,7 +558,11 @@ def communicate(
             )
 
             # Find new items added by this communicator
-            keys_after = set(analysis_state.communicate.keys()) if analysis_state.communicate else set()
+            keys_after = (
+                set(analysis_state.communicate.keys())
+                if analysis_state.communicate
+                else set()
+            )
             new_keys = keys_after - keys_before
 
             # Route each new item to the matching model section
@@ -544,7 +582,8 @@ def communicate(
                     registry_info(communicator).name,
                     outcome,
                     details=_extract_comm_details(
-                        registry_info(communicator).name, analysis_state,
+                        registry_info(communicator).name,
+                        analysis_state,
                         only_keys=keys,
                     ),
                 )
@@ -557,7 +596,8 @@ def communicate(
                     registry_info(communicator).name,
                     outcome,
                     details=_extract_comm_details(
-                        registry_info(communicator).name, analysis_state,
+                        registry_info(communicator).name,
+                        analysis_state,
                         only_keys=unrouted_keys,
                     ),
                 )

@@ -1,6 +1,7 @@
 from ._check import Checker, CheckerResult, checker
 from .checker_config import CheckerConfig
 from .checkers import (
+    agreement_check,
     bfmi,
     divergences,
     ess_bulk,
@@ -20,6 +21,7 @@ __all__ = [
     "Checker",
     "checker",
     "CheckerResult",
+    "agreement_check",
     "bfmi",
     "divergences",
     "ess_bulk",

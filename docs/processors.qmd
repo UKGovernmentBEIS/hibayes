@@ -69,6 +69,10 @@ Supports effect coding, custom reference categories, custom category ordering, a
 
 **`drop_rows_with_missing_features`** - Remove rows with missing values in specified columns.
 
+**`combine_columns`** - Join several columns into one string column, e.g. an item id that is unique across benchmarks (`combine_columns: {new_column: item, columns: [dataset, task]}`). Sample ids usually restart in every dataset, so `task` alone would merge unrelated items.
+
+**`set_dims`** - Name the dimensions of model variables that `extract_features` doesn't know about, such as a custom model's `numpyro.deterministic` sites (`set_dims: {dims: {accuracy: [model]}}`), so plots and tables are labelled. Run it after `extract_features`.
+
 ## Configuring processors
 
 Processors are configured in your `hibayes.yaml` under the `data_process` section:
@@ -154,3 +158,5 @@ These enable meaningful posterior summaries with named indices rather than integ
 | `map_columns` | Rename columns to match expected names | `column_mapping` (dict) |
 | `groupby` | Aggregate data for binomial models | `groupby_columns` (creates `n_correct`, `n_total`) |
 | `drop_rows_with_missing_features` | Remove rows with missing values | `feature_names` (list of columns to check) |
+| `combine_columns` | Join columns into one string column (e.g. a unique item id) | `new_column`, `columns`, `separator='::'` |
+| `set_dims` | Name the dims of model variables for labelled plots and tables | `dims` (dict of variable → list of coords) |

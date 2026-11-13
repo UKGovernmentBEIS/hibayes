@@ -6,7 +6,12 @@ from .plots import (
     pair_plot,
     trace_plot,
 )
-from .tables import binomial_estimands_table, group_binomial_estimands, summary_table
+from .tables import (
+    binomial_estimands_table,
+    comparison_summary,
+    group_binomial_estimands,
+    summary_table,
+)
 
 __all__ = [
     "Communicator",
@@ -20,4 +25,5 @@ __all__ = [
     "summary_table",
     "binomial_estimands_table",
     "group_binomial_estimands",
+    "comparison_summary",
 ]

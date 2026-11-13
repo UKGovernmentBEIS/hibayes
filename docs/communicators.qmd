@@ -16,6 +16,7 @@ Communicators help you _communicate_ your findings. They cover both tables and p
 | `model_comparison_plot` | Compares models using information criteria (LOO/WAIC) | Requires ≥2 fitted models |
 | `summary_table` | Statistical summary table of posterior parameters | `vars=None`, `best_model=True`, `round_to=2` |
 | `binomial_estimands_table` | Explicit probability-scale summaries for the two grouped binomial models | `best_model=False`, `credible_interval=0.95` |
+| `comparison_summary` | For `accuracy_comparison` fits: accuracies, accuracy difference with credible interval, P(compared model better) and P(practically equivalent), per fit, group and compared model | `credible_mass=0.95`, `practical_difference=0.01`, `best_model=False` |
 
 ## Binomial estimands
 

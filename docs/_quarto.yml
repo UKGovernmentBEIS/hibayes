@@ -42,6 +42,7 @@ website:
             - analysis-state.qmd
         - section: "Examples"
           contents:
+            - examples/comparing-two-models.qmd
             - examples/hibayes-usecases.qmd
             - examples/llm-as-a-judge.qmd
 
